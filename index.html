@@ -1,0 +1,1399 @@
+  <!DOCTYPE html>
+<html>
+<head>
+    <title>Planet Eating</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000011; }
+        canvas { display: block; }
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial;
+            font-size: 20px;
+            line-height: 1.4;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 10px 14px;
+            border-radius: 8px;
+        }
+        #restart {
+            margin-top: 10px;
+            width: 100%;
+            background: #203a66;
+            color: #e7f2ff;
+            border: 1px solid #7bb6ff;
+            border-radius: 6px;
+            padding: 7px 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #restart:hover {
+            background: #2b4b83;
+        }
+        #start {
+            margin-top: 8px;
+            width: 100%;
+            background: #1f6f3c;
+            color: #e8ffe8;
+            border: 1px solid #87e7a4;
+            border-radius: 6px;
+            padding: 7px 10px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #start:hover {
+            background: #2a8a4c;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        Masse: <span id="mass">100</span><br>
+        Position: <span id="position">0, 0</span><br>
+        Feind-Bots: <span id="bots">0</span><br>
+        Warnung: <span id="hazard">Sicher</span><br>
+        Ziel: Blaue Wolke am rechten Rand<br>
+        <button id="start" type="button">Start</button>
+        <button id="restart" type="button">Nochmal</button>
+    </div>
+    <canvas id="game"></canvas>
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const massLabel = document.getElementById('mass');
+        const positionLabel = document.getElementById('position');
+        const botsLabel = document.getElementById('bots');
+        const hazardLabel = document.getElementById('hazard');
+        const startButton = document.getElementById('start');
+        const restartButton = document.getElementById('restart');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const world = {
+            width: Math.floor(canvas.width * 3),
+            height: Math.floor(canvas.height * 2)
+        };
+
+        const camera = {
+            x: 0,
+            y: 0
+        };
+
+        let player = {
+            x: world.width * 0.1,
+            y: world.height / 2,
+            mass: 100,
+            radius: 20,
+            speed: 3,
+            shieldTimer: 0,
+            launchTarget: null
+        };
+
+        const LAUNCH_SPEED = 14;
+
+        const bgImage = new Image();
+        bgImage.src = 'images/ChatGPT Image 22. Apr. 2026, 15_53_54.png';
+
+        const endCloud = {
+            x: world.width - 180,
+            y: world.height / 2,
+            radius: 130
+        };
+
+        const SAFE_ZONE_MARGIN = 38;
+        const safeZone = {
+            inset: SAFE_ZONE_MARGIN
+        };
+
+        function getSafeRect() {
+            const i = safeZone.inset;
+            return { x: i, y: i, w: world.width - i * 2, h: world.height - i * 2 };
+        }
+
+        const MASS_GAIN_FACTOR = 0.4;
+        const BOT_COUNT = 20;
+        const PLANET_ABSORB_GAIN = 0.8;
+        const BOT_NAMES = [
+            'Zephyr', 'Nova', 'Orion', 'Vega', 'Lyra', 'Atlas', 'Draco', 'Solara',
+            'Nebula', 'Cosmo', 'Astra', 'Rigel', 'Titan', 'Pulsar', 'Quasar', 'Helios',
+            'Kairo', 'Sirius', 'Ares', 'Cygnus', 'Ignis', 'Hydra', 'Corvus', 'Mira',
+            'Xenon', 'Lycan', 'Oberon', 'Phobos', 'Celeste', 'Kronos', 'Andros', 'Vesper',
+            'Eclipsa', 'Noctis', 'Solis', 'Ferox', 'Zarkon', 'Lumis', 'Talon', 'Seraph',
+            'Voltex', 'Nimbus', 'Aegis', 'Pyrex', 'Gravon', 'Strix', 'Auron', 'Caldor',
+            'Nexus', 'Vortex'
+        ];
+
+        const BOT_COLORS = [
+            { fill: '#ff6b6b', ring: '#ffd0d0' },
+            { fill: '#ff9f43', ring: '#ffe0bd' },
+            { fill: '#feca57', ring: '#fff1c1' },
+            { fill: '#1dd1a1', ring: '#bbffe7' },
+            { fill: '#48dbfb', ring: '#d4f7ff' },
+            { fill: '#54a0ff', ring: '#d6e8ff' },
+            { fill: '#5f27cd', ring: '#d9c8ff' },
+            { fill: '#c56cf0', ring: '#f1d9ff' },
+            { fill: '#ff7f50', ring: '#ffd7c8' },
+            { fill: '#2ecc71', ring: '#d1ffe3' }
+        ];
+        const SHIELD_DURATION = 3;
+        const SHIELD_PUSH_DISTANCE = 80;
+        const EQUAL_MASS_THRESHOLD = 0;
+        const BOT_BASE_SPEED = 1.9;
+        const PLANET_SPEED_MULT = 1.25;
+        const POISON_START_DELAY_SECONDS = 0;
+        const POISON_TICK_SECONDS = 1;
+        const POISON_GROWTH_DURATION_SECONDS = 300;
+        const POISON_GROWTH_STEP_SECONDS = 0.5;
+
+        let gameWon = false;
+        let gameOver = false;
+        let gameStarted = false;
+        let matchEnded = false;
+        let matchElapsedSeconds = 0;
+        let matchResultTitle = '';
+        let matchResultText = '';
+        let lastFrameTime = performance.now();
+        let poisonGrowthElapsed = 0;
+        let poisonGrowthStepTimer = 0;
+        let poisonTickTimer = 0;
+        let poisonTicksTaken = 0;
+        let poisonMassAtEntry = 0;
+        let wasInsidePoison = false;
+        let lowestPlayerMass = player.mass;
+        let asteroidSizeLimit = player.mass - 1;
+        let asteroids = [];
+        let bots = [];
+        let explosions = [];
+        let keys = {
+            ArrowUp: false,
+            ArrowDown: false,
+            ArrowLeft: false,
+            ArrowRight: false
+        };
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+
+            world.width = Math.floor(canvas.width * 3);
+            world.height = Math.floor(canvas.height * 2);
+
+            endCloud.x = world.width - 180;
+            endCloud.y = world.height / 2;
+
+            applyPoisonCloudGrowthProgress();
+
+            player.x = Math.max(player.radius, Math.min(world.width - player.radius, player.x));
+            player.y = Math.max(player.radius, Math.min(world.height - player.radius, player.y));
+
+            bots.forEach((bot) => {
+                bot.x = Math.max(bot.radius, Math.min(world.width - bot.radius, bot.x));
+                bot.y = Math.max(bot.radius, Math.min(world.height - bot.radius, bot.y));
+            });
+
+            asteroids.forEach((asteroid) => {
+                asteroid.x = Math.max(asteroid.radius, Math.min(world.width - asteroid.radius, asteroid.x));
+                asteroid.y = Math.max(asteroid.radius, Math.min(world.height - asteroid.radius, asteroid.y));
+            });
+        });
+
+        window.addEventListener('keydown', (event) => {
+            if (event.key.startsWith('Arrow')) {
+                event.preventDefault();
+            }
+            if (event.key in keys) {
+                keys[event.key] = true;
+            }
+        });
+
+        window.addEventListener('keyup', (event) => {
+            if (event.key.startsWith('Arrow')) {
+                event.preventDefault();
+            }
+            if (event.key in keys) {
+                keys[event.key] = false;
+            }
+        });
+
+        function updatePlayerRadius() {
+            player.radius = Math.sqrt(player.mass) * 2;
+        }
+
+        function updateEntityRadius(entity) {
+            entity.radius = Math.sqrt(entity.mass) * 2;
+        }
+
+        function updateLowestMass() {
+            lowestPlayerMass = Math.min(lowestPlayerMass, player.mass);
+            asteroidSizeLimit = Math.max(10, Math.floor(lowestPlayerMass - 1));
+        }
+
+        function updateMassDisplay() {
+            massLabel.textContent = Math.max(0, Math.ceil(player.mass));
+        }
+
+        function updateBotsDisplay() {
+            botsLabel.textContent = bots.length;
+        }
+
+        function updatePositionDisplay() {
+            positionLabel.textContent = `${Math.floor(player.x)}, ${Math.floor(player.y)}`;
+        }
+
+        function setHazardStatus(text, color) {
+            hazardLabel.textContent = text;
+            hazardLabel.style.color = color;
+        }
+
+        function initializeBots() {
+            bots = [];
+            for (let i = 0; i < BOT_COUNT; i += 1) {
+                let spawnX = 0;
+                let spawnY = 0;
+                let attempts = 0;
+                do {
+                    spawnX = 80 + Math.random() * (world.width - 160);
+                    spawnY = 80 + Math.random() * (world.height - 160);
+                    attempts += 1;
+                } while (Math.hypot(spawnX - player.x, spawnY - player.y) < 700 && attempts < 60);
+
+                const mass = 100;
+                const color = BOT_COLORS[i % BOT_COLORS.length];
+                bots.push({
+                    x: spawnX,
+                    y: spawnY,
+                    mass,
+                    radius: Math.sqrt(mass) * 2,
+                    speed: BOT_BASE_SPEED,
+                    fillColor: color.fill,
+                    ringColor: color.ring,
+                    name: BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)],
+                    shieldTimer: 0,
+                    launchTarget: null,
+                    poisonTickTimer: 0,
+                    poisonTicksTaken: 0,
+                    poisonMassAtEntry: 0,
+                    wasInsidePoison: false,
+                    isAvoidingPoison: false,
+                    poisonEscapeX: 0,
+                    poisonEscapeY: 0,
+                    moveDirX: 0,
+                    moveDirY: 0
+                });
+            }
+            updateBotsDisplay();
+        }
+
+        function resetGame() {
+            player.x = world.width * 0.1;
+            player.y = world.height / 2;
+            player.mass = 100;
+            player.speed = 3;
+            player.shieldTimer = 0;
+            player.launchTarget = null;
+            updatePlayerRadius();
+
+            gameWon = false;
+            gameOver = false;
+            gameStarted = false;
+            matchEnded = false;
+            matchElapsedSeconds = 0;
+            matchResultTitle = '';
+            matchResultText = '';
+
+            poisonGrowthElapsed = 0;
+            poisonGrowthStepTimer = 0;
+            poisonTickTimer = 0;
+            poisonTicksTaken = 0;
+            poisonMassAtEntry = 0;
+            wasInsidePoison = false;
+
+            lowestPlayerMass = player.mass;
+            asteroidSizeLimit = player.mass - 1;
+            asteroids = [];
+            explosions = [];
+
+            safeZone.inset = SAFE_ZONE_MARGIN;
+            applyPoisonCloudGrowthProgress();
+
+            Object.keys(keys).forEach((key) => {
+                keys[key] = false;
+            });
+
+            initializeBots();
+            updateMassDisplay();
+            updatePositionDisplay();
+            setHazardStatus('Sicher', '#9effc3');
+            startButton.style.display = 'block';
+        }
+
+        function startGame() {
+            gameStarted = true;
+            startButton.style.display = 'none';
+            lastFrameTime = performance.now();
+        }
+
+        function applyPoisonCloudGrowthProgress() {
+            const growthProgress = Math.min(1, poisonGrowthElapsed / POISON_GROWTH_DURATION_SECONDS);
+            const startInset = SAFE_ZONE_MARGIN;
+            const targetInset = Math.max(world.width, world.height) / 2 + SAFE_ZONE_MARGIN;
+            safeZone.inset = Math.round(startInset + (targetInset - startInset) * growthProgress);
+        }
+
+        function updatePoisonCloudGrowth(deltaSeconds) {
+            if (poisonGrowthElapsed >= POISON_GROWTH_DURATION_SECONDS) {
+                return;
+            }
+
+            poisonGrowthElapsed = Math.min(POISON_GROWTH_DURATION_SECONDS, poisonGrowthElapsed + deltaSeconds);
+            poisonGrowthStepTimer += deltaSeconds;
+
+            if (poisonGrowthStepTimer < POISON_GROWTH_STEP_SECONDS) {
+                return;
+            }
+
+            poisonGrowthStepTimer %= POISON_GROWTH_STEP_SECONDS;
+            applyPoisonCloudGrowthProgress();
+        }
+
+        function movePlayer() {
+            if (player.launchTarget) {
+                const dx = player.launchTarget.x - player.x;
+                const dy = player.launchTarget.y - player.y;
+                const dist = Math.hypot(dx, dy);
+                const launchStep = LAUNCH_SPEED * PLANET_SPEED_MULT;
+                if (dist <= launchStep) {
+                    player.x = player.launchTarget.x;
+                    player.y = player.launchTarget.y;
+                    player.launchTarget = null;
+                } else {
+                    player.x += (dx / dist) * launchStep;
+                    player.y += (dy / dist) * launchStep;
+                }
+                return;
+            }
+
+            let moveX = 0;
+            let moveY = 0;
+
+            if (keys.ArrowLeft) {
+                moveX -= 1;
+            }
+            if (keys.ArrowRight) {
+                moveX += 1;
+            }
+            if (keys.ArrowUp) {
+                moveY -= 1;
+            }
+            if (keys.ArrowDown) {
+                moveY += 1;
+            }
+
+            if (moveX === 0 && moveY === 0) {
+                return;
+            }
+
+            if (keys.ArrowRight) {
+                moveX += 0.4;
+            }
+
+            const length = Math.hypot(moveX, moveY);
+            const currentSpeed = Math.max(0.8, player.speed / Math.pow(player.mass / 100, 0.7)) * PLANET_SPEED_MULT;
+            player.x += (moveX / length) * currentSpeed;
+            player.y += (moveY / length) * currentSpeed;
+
+            player.x = Math.max(player.radius, Math.min(world.width - player.radius, player.x));
+            player.y = Math.max(player.radius, Math.min(world.height - player.radius, player.y));
+        }
+
+        function createAsteroid() {
+            const maxMass = Math.min(asteroidSizeLimit, Math.floor(player.mass - 1));
+
+            if (maxMass < 10) {
+                return;
+            }
+
+            const asteroidMass = Math.floor(Math.random() * (maxMass - 9)) + 10;
+            const asteroidRadius = Math.sqrt(asteroidMass) * 2;
+            const pointCount = 9 + Math.floor(Math.random() * 5);
+            const points = [];
+            for (let i = 0; i < pointCount; i++) {
+                const angle = (i / pointCount) * Math.PI * 2;
+                const r = asteroidRadius * (0.72 + Math.random() * 0.32);
+                points.push({ angle, r });
+            }
+            const craters = [];
+            const craterCount = 1 + Math.floor(Math.random() * 3);
+            for (let i = 0; i < craterCount; i++) {
+                craters.push({
+                    ax: (Math.random() - 0.5) * asteroidRadius * 0.9,
+                    ay: (Math.random() - 0.5) * asteroidRadius * 0.9,
+                    r: asteroidRadius * (0.1 + Math.random() * 0.2)
+                });
+            }
+
+            asteroids.push({
+                x: Math.random() * (world.width - asteroidRadius * 2) + asteroidRadius,
+                y: Math.random() * (world.height - asteroidRadius * 2) + asteroidRadius,
+                mass: asteroidMass,
+                radius: asteroidRadius,
+                vx: (Math.random() * 2 - 1) * 0.45,
+                vy: (Math.random() * 2 - 1) * 0.45,
+                rotation: Math.random() * Math.PI * 2,
+                rotSpeed: (Math.random() - 0.5) * 0.012,
+                points,
+                craters
+            });
+        }
+
+        function moveAsteroids() {
+            asteroids.forEach((asteroid) => {
+                asteroid.x += asteroid.vx;
+                asteroid.y += asteroid.vy;
+
+                if (asteroid.x <= asteroid.radius || asteroid.x >= world.width - asteroid.radius) {
+                    asteroid.vx *= -1;
+                    asteroid.x = Math.max(asteroid.radius, Math.min(world.width - asteroid.radius, asteroid.x));
+                }
+
+                if (asteroid.y <= asteroid.radius || asteroid.y >= world.height - asteroid.radius) {
+                    asteroid.vy *= -1;
+                    asteroid.y = Math.max(asteroid.radius, Math.min(world.height - asteroid.radius, asteroid.y));
+                }
+            });
+        }
+
+        function moveBots() {
+            const sz = getSafeRect();
+            const poisonEnterMargin = 120;
+            const poisonLeaveMargin = 50;
+
+            bots.forEach((bot) => {
+                let dx = 0;
+                let dy = 0;
+
+                // Priority 1: flee poison cloud
+                const poisonMargin = bot.isAvoidingPoison ? poisonLeaveMargin : poisonEnterMargin;
+                const shrunkSz = {
+                    x: sz.x + poisonMargin,
+                    y: sz.y + poisonMargin,
+                    w: sz.w - poisonMargin * 2,
+                    h: sz.h - poisonMargin * 2
+                };
+                let nearPoison = false;
+                let overflowX = 0;
+                let overflowY = 0;
+                if (bot.x < shrunkSz.x) { overflowX = shrunkSz.x - bot.x; nearPoison = true; }
+                else if (bot.x > shrunkSz.x + shrunkSz.w) { overflowX = (shrunkSz.x + shrunkSz.w) - bot.x; nearPoison = true; }
+                if (bot.y < shrunkSz.y) { overflowY = shrunkSz.y - bot.y; nearPoison = true; }
+                else if (bot.y > shrunkSz.y + shrunkSz.h) { overflowY = (shrunkSz.y + shrunkSz.h) - bot.y; nearPoison = true; }
+
+                // lock to one coarse escape direction to avoid mini zig-zag on the poison edge
+                if (nearPoison) {
+                    if (!bot.isAvoidingPoison || (bot.poisonEscapeX === 0 && bot.poisonEscapeY === 0)) {
+                        if (Math.abs(overflowX) >= Math.abs(overflowY)) {
+                            bot.poisonEscapeX = overflowX >= 0 ? 1 : -1;
+                            bot.poisonEscapeY = 0;
+                        } else {
+                            bot.poisonEscapeX = 0;
+                            bot.poisonEscapeY = overflowY >= 0 ? 1 : -1;
+                        }
+                    }
+                    dx = bot.poisonEscapeX;
+                    dy = bot.poisonEscapeY;
+                } else {
+                    bot.poisonEscapeX = 0;
+                    bot.poisonEscapeY = 0;
+                }
+                bot.isAvoidingPoison = nearPoison;
+
+                // Priority 0: finish launch movement
+                if (bot.launchTarget) {
+                    const ldx = bot.launchTarget.x - bot.x;
+                    const ldy = bot.launchTarget.y - bot.y;
+                    const ldist = Math.hypot(ldx, ldy);
+                    const launchStep = LAUNCH_SPEED * PLANET_SPEED_MULT;
+                    if (ldist <= launchStep) {
+                        bot.x = bot.launchTarget.x;
+                        bot.y = bot.launchTarget.y;
+                        bot.launchTarget = null;
+                    } else {
+                        bot.x += (ldx / ldist) * launchStep;
+                        bot.y += (ldy / ldist) * launchStep;
+                    }
+                    return;
+                }
+
+                if (!nearPoison) {
+                    // Priority 2: flee from any nearby threat (player or bot that is clearly bigger)
+                    const FLEE_RADIUS = 350;
+                    let fleeDx = 0, fleeDy = 0;
+
+                    const pdx = player.x - bot.x;
+                    const pdy = player.y - bot.y;
+                    const pDist = Math.hypot(pdx, pdy);
+                    if (player.mass > bot.mass * (1 + EQUAL_MASS_THRESHOLD) && pDist < FLEE_RADIUS) {
+                        if (pDist > 0) { fleeDx -= pdx / pDist; fleeDy -= pdy / pDist; }
+                    }
+                    bots.forEach((other) => {
+                        if (other === bot) { return; }
+                        if (other.mass > bot.mass * (1 + EQUAL_MASS_THRESHOLD)) {
+                            const od = Math.hypot(bot.x - other.x, bot.y - other.y);
+                            if (od < FLEE_RADIUS && od > 0) { fleeDx -= (other.x - bot.x) / od; fleeDy -= (other.y - bot.y) / od; }
+                        }
+                    });
+                    if (Math.hypot(fleeDx, fleeDy) > 0.01) {
+                        const fl = Math.hypot(fleeDx, fleeDy);
+                        dx = fleeDx / fl;
+                        dy = fleeDy / fl;
+                    }
+
+                    // Priority 3: chase nearest smaller enemy (player or bot) within attack range
+                    if (Math.hypot(dx, dy) < 0.05) {
+                        // always scan full map — pick highest score (bigger mass, closer distance)
+                            let bestTarget = null;
+                            let bestScore = -1;
+
+                            if (bot.mass > player.mass * (1 + EQUAL_MASS_THRESHOLD)) {
+                                const score = player.mass / (pDist + 1);
+                                if (score > bestScore) { bestScore = score; bestTarget = { x: player.x, y: player.y }; }
+                            }
+                        bots.forEach((other) => {
+                            if (other === bot) { return; }
+                            if (bot.mass > other.mass * (1 + EQUAL_MASS_THRESHOLD)) {
+                                const od = Math.hypot(bot.x - other.x, bot.y - other.y);
+                                    const score = other.mass / (od + 1);
+                                    if (score > bestScore) { bestScore = score; bestTarget = other; }
+                            }
+                        });
+                        if (bestTarget) {
+                            const td = Math.hypot(bestTarget.x - bot.x, bestTarget.y - bot.y);
+                            if (td > 0) { dx = (bestTarget.x - bot.x) / td; dy = (bestTarget.y - bot.y) / td; }
+                        }
+                    }
+
+                    // Priority 4: seek nearest collectible asteroid
+                    if (Math.hypot(dx, dy) < 0.05) {
+                        let nearestAsteroid = null;
+                        let nearestDist = 1200;
+                        asteroids.forEach((asteroid) => {
+                            if (asteroid.mass < bot.mass) {
+                                const d = Math.hypot(bot.x - asteroid.x, bot.y - asteroid.y);
+                                if (d < nearestDist) { nearestDist = d; nearestAsteroid = asteroid; }
+                            }
+                        });
+                        if (nearestAsteroid) {
+                            const aDist = Math.hypot(nearestAsteroid.x - bot.x, nearestAsteroid.y - bot.y);
+                            if (aDist > 0) { dx = (nearestAsteroid.x - bot.x) / aDist; dy = (nearestAsteroid.y - bot.y) / aDist; }
+                        }
+                    }
+
+                    // Fallback: wander
+                    if (Math.hypot(dx, dy) < 0.05) {
+                        if (!bot.wanderTarget || Math.hypot(bot.x - bot.wanderTarget.x, bot.y - bot.wanderTarget.y) < 40) {
+                            const szW = getSafeRect();
+                            bot.wanderTarget = {
+                                x: szW.x + 80 + Math.random() * (szW.w - 160),
+                                y: szW.y + 80 + Math.random() * (szW.h - 160)
+                            };
+                        }
+                        const wDist = Math.hypot(bot.wanderTarget.x - bot.x, bot.wanderTarget.y - bot.y);
+                        if (wDist > 0) { dx = (bot.wanderTarget.x - bot.x) / wDist; dy = (bot.wanderTarget.y - bot.y) / wDist; }
+                    }
+                }
+
+                const length = Math.hypot(dx, dy);
+                const targetDirX = length > 0 ? dx / length : 0;
+                const targetDirY = length > 0 ? dy / length : 0;
+                const steerFactor = length > 0 ? 0.22 : 0.1;
+                bot.moveDirX = bot.moveDirX * (1 - steerFactor) + targetDirX * steerFactor;
+                bot.moveDirY = bot.moveDirY * (1 - steerFactor) + targetDirY * steerFactor;
+
+                const smoothLen = Math.hypot(bot.moveDirX, bot.moveDirY);
+                if (smoothLen > 0.03) {
+                    const currentBotSpeed = Math.max(0.5, bot.speed / Math.pow(bot.mass / 100, 0.7)) * PLANET_SPEED_MULT;
+                    bot.x += (bot.moveDirX / smoothLen) * currentBotSpeed;
+                    bot.y += (bot.moveDirY / smoothLen) * currentBotSpeed;
+                }
+
+                bot.x = Math.max(bot.radius, Math.min(world.width - bot.radius, bot.x));
+                bot.y = Math.max(bot.radius, Math.min(world.height - bot.radius, bot.y));
+            });
+        }
+
+        function findSafeSpot(excludeRadius) {
+            const sz = getSafeRect();
+            const margin = 100;
+            for (let attempt = 0; attempt < 80; attempt++) {
+                const x = sz.x + margin + Math.random() * (sz.w - margin * 2);
+                const y = sz.y + margin + Math.random() * (sz.h - margin * 2);
+                if (circleOutsideSafeZone(x, y, margin / 2)) { continue; }
+                if (Math.hypot(x - player.x, y - player.y) < excludeRadius) { continue; }
+                let tooClose = false;
+                for (const bot of bots) {
+                    if (Math.hypot(x - bot.x, y - bot.y) < excludeRadius) { tooClose = true; break; }
+                }
+                if (!tooClose) { return { x, y }; }
+            }
+            return { x: sz.x + sz.w / 2, y: sz.y + sz.h / 2 };
+        }
+
+        function getMassLeader() {
+            let leaderName = 'Spieler';
+            let leaderMass = Math.max(0, Math.ceil(player.mass));
+
+            for (let i = 0; i < bots.length; i += 1) {
+                const botMass = Math.max(0, Math.ceil(bots[i].mass));
+                if (botMass > leaderMass) {
+                    leaderMass = botMass;
+                    leaderName = `Bot ${i + 1}`;
+                }
+            }
+
+            return { leaderName, leaderMass };
+        }
+
+        function endMatch(reason) {
+            if (matchEnded) {
+                return;
+            }
+
+            matchEnded = true;
+            const leader = getMassLeader();
+            matchResultTitle = 'Runde beendet';
+            matchResultText = `${reason} | Gewinner: ${leader.leaderName} (${leader.leaderMass} Masse)`;
+            setHazardStatus(`Gewinner: ${leader.leaderName}`, '#b9ecff');
+        }
+
+        function createExplosion(x, y, strength, color, type = 'generic', options = {}) {
+            const life = options.life ?? 0.45;
+            const particleCount = options.particleCount ?? 3;
+            const particleSpread = options.particleSpread ?? 0.4;
+            const particles = [];
+            for (let i = 0; i < particleCount; i += 1) {
+                const angle = (i / particleCount) * Math.PI * 2 + Math.random() * 0.4;
+                const distance = 0.15 + Math.random() * particleSpread;
+                const size = 0.08 + Math.random() * 0.15;
+                particles.push({ angle, distance, size });
+            }
+            explosions.push({
+                x,
+                y,
+                radius: Math.max(10, strength * 0.55),
+                life,
+                maxLife: life,
+                color,
+                type,
+                particles
+            });
+        }
+
+        function createCombatDeathEffect(x, y, strength) {
+            createExplosion(x, y, strength, 'rgba(255, 105, 85, 0.92)', 'combat');
+        }
+
+        function createPoisonDeathEffect(x, y, strength) {
+            createExplosion(x, y, strength, 'rgba(130, 255, 120, 0.9)', 'poison');
+        }
+
+        function createPoisonDamageEffect(x, y, strength) {
+            createExplosion(x, y, strength, 'rgba(170, 255, 140, 0.8)', 'poison', {
+                life: 0.85,
+                particleCount: 10,
+                particleSpread: 0.65
+            });
+        }
+
+        function updateExplosions(deltaSeconds) {
+            explosions = explosions.filter((explosion) => {
+                explosion.life -= deltaSeconds;
+                return explosion.life > 0;
+            });
+        }
+
+        function drawExplosions() {
+            explosions.forEach((explosion) => {
+                const sx = explosion.x - camera.x;
+                const sy = explosion.y - camera.y;
+
+                if (sx + explosion.radius < 0 || sx - explosion.radius > canvas.width || sy + explosion.radius < 0 || sy - explosion.radius > canvas.height) {
+                    return;
+                }
+
+                const progress = explosion.life / explosion.maxLife;
+                const currentRadius = explosion.radius + (1 - progress) * 26;
+                if (explosion.type === 'combat') {
+                    ctx.globalAlpha = progress;
+                    ctx.fillStyle = explosion.color;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, currentRadius, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.globalAlpha = progress * 0.9;
+                    ctx.strokeStyle = 'rgba(255, 230, 170, 0.9)';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, currentRadius * 1.2, 0, Math.PI * 2);
+                    ctx.stroke();
+                } else if (explosion.type === 'poison') {
+                    const pulse = 0.8 + 0.2 * Math.sin(performance.now() / 80 + explosion.x * 0.01);
+                    ctx.globalAlpha = progress * 0.75;
+                    ctx.fillStyle = explosion.color;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, currentRadius * 0.9 * pulse, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.globalAlpha = progress * 0.65;
+                    ctx.strokeStyle = 'rgba(200, 255, 170, 0.95)';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, currentRadius * 1.3, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    ctx.globalAlpha = progress * 0.5;
+                    ctx.fillStyle = 'rgba(170, 255, 160, 0.8)';
+                    ctx.beginPath();
+                    explosion.particles.forEach((p) => {
+                        const px = sx + Math.cos(p.angle) * currentRadius * p.distance;
+                        const py = sy + Math.sin(p.angle) * currentRadius * p.distance;
+                        ctx.moveTo(px + currentRadius * p.size, py);
+                        ctx.arc(px, py, currentRadius * p.size, 0, Math.PI * 2);
+                    });
+                    ctx.fill();
+                } else {
+                    ctx.globalAlpha = progress;
+                    ctx.fillStyle = explosion.color;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, currentRadius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalAlpha = 1;
+            });
+        }
+
+        function circleOutsideSafeZone(cx, cy, r) {
+            const sz = getSafeRect();
+            return cx - r < sz.x || cx + r > sz.x + sz.w || cy - r < sz.y || cy + r > sz.y + sz.h;
+        }
+
+        function destroyAsteroidsInPoisonClouds() {
+            asteroids = asteroids.filter((asteroid) => {
+                if (circleOutsideSafeZone(asteroid.x, asteroid.y, asteroid.radius)) {
+                    createExplosion(asteroid.x, asteroid.y, asteroid.radius, 'rgba(190, 255, 120, 0.8)');
+                    return false;
+                }
+                return true;
+            });
+        }
+
+        function applyPoisonDamageToBots(deltaSeconds) {
+            bots = bots.filter((bot) => {
+                if (bot.shieldTimer > 0) {
+                    bot.wasInsidePoison = false;
+                    bot.poisonTickTimer = 0;
+                    bot.poisonTicksTaken = 0;
+                    bot.poisonMassAtEntry = 0;
+                    return true;
+                }
+
+                const insidePoison = circleOutsideSafeZone(bot.x, bot.y, bot.radius);
+
+                if (!insidePoison) {
+                    bot.wasInsidePoison = false;
+                    bot.poisonTickTimer = 0;
+                    bot.poisonTicksTaken = 0;
+                    bot.poisonMassAtEntry = 0;
+                    return true;
+                }
+
+                if (!bot.wasInsidePoison) {
+                    bot.wasInsidePoison = true;
+                    bot.poisonTickTimer = 0;
+                    bot.poisonTicksTaken = 0;
+                    bot.poisonMassAtEntry = Math.max(1, Math.ceil(bot.mass));
+                }
+
+                bot.poisonTickTimer += deltaSeconds;
+                while (bot.poisonTickTimer >= POISON_TICK_SECONDS) {
+                    bot.poisonTickTimer -= POISON_TICK_SECONDS;
+                    bot.poisonTicksTaken += 1;
+                    const loss = bot.poisonMassAtEntry * 0.25;
+                    bot.mass = Math.floor(bot.poisonMassAtEntry - bot.poisonTicksTaken * loss);
+
+                    if (bot.mass <= 0) {
+                        createPoisonDeathEffect(bot.x, bot.y, Math.max(bot.radius * 1.2, 14));
+                        return false;
+                    }
+                    updateEntityRadius(bot);
+                }
+                return true;
+            });
+            updateBotsDisplay();
+        }
+
+        function drawAsteroids() {
+            ctx.textAlign = 'center';
+            ctx.font = '14px Arial';
+
+            asteroids.forEach((asteroid) => {
+                const sx = asteroid.x - camera.x;
+                const sy = asteroid.y - camera.y;
+
+                if (sx + asteroid.radius < 0 || sx - asteroid.radius > canvas.width || sy + asteroid.radius < 0 || sy - asteroid.radius > canvas.height) {
+                    return;
+                }
+
+                asteroid.rotation += asteroid.rotSpeed;
+
+                ctx.save();
+                ctx.translate(sx, sy);
+                ctx.rotate(asteroid.rotation);
+
+                // rocky polygon path
+                ctx.beginPath();
+                asteroid.points.forEach((p, i) => {
+                    const x = Math.cos(p.angle) * p.r;
+                    const y = Math.sin(p.angle) * p.r;
+                    if (i === 0) { ctx.moveTo(x, y); } else { ctx.lineTo(x, y); }
+                });
+                ctx.closePath();
+
+                // radial gradient fill
+                const grad = ctx.createRadialGradient(-asteroid.radius * 0.25, -asteroid.radius * 0.25, asteroid.radius * 0.05, 0, 0, asteroid.radius);
+                grad.addColorStop(0, '#c8a97a');
+                grad.addColorStop(0.45, '#8b6540');
+                grad.addColorStop(1, '#3e2a14');
+                ctx.fillStyle = grad;
+                ctx.fill();
+
+                // outline glow
+                ctx.strokeStyle = 'rgba(220,180,100,0.55)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                // craters
+                asteroid.craters.forEach((c) => {
+                    ctx.beginPath();
+                    ctx.arc(c.ax, c.ay, c.r, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(30,15,5,0.55)';
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(180,140,80,0.35)';
+                    ctx.lineWidth = 0.8;
+                    ctx.stroke();
+                });
+
+                ctx.restore();
+
+                // mass label
+                ctx.fillStyle = 'rgba(255,255,255,0.9)';
+                ctx.font = `${Math.max(10, Math.min(14, asteroid.radius))}px Arial`;
+                ctx.fillText(asteroid.mass, sx, sy - asteroid.radius - 6);
+            });
+        }
+
+        function collectAsteroids() {
+            asteroids = asteroids.filter((asteroid) => {
+                const distance = Math.hypot(player.x - asteroid.x, player.y - asteroid.y);
+                const touchesPlayer = distance <= player.radius + asteroid.radius;
+
+                if (!touchesPlayer) {
+                    return true;
+                }
+
+                player.mass += asteroid.mass * MASS_GAIN_FACTOR;
+                createExplosion(asteroid.x, asteroid.y, asteroid.radius, 'rgba(255, 190, 120, 0.85)');
+                updatePlayerRadius();
+                updateMassDisplay();
+                return false;
+            });
+        }
+
+        function collectAsteroidsForBots() {
+            asteroids = asteroids.filter((asteroid) => {
+                for (let i = 0; i < bots.length; i += 1) {
+                    const bot = bots[i];
+                    const distance = Math.hypot(bot.x - asteroid.x, bot.y - asteroid.y);
+                    const touchesBot = distance <= bot.radius + asteroid.radius;
+
+                    if (!touchesBot) {
+                        continue;
+                    }
+
+                    bot.mass += asteroid.mass * MASS_GAIN_FACTOR * 0.75;
+                    updateEntityRadius(bot);
+                    createExplosion(asteroid.x, asteroid.y, asteroid.radius, 'rgba(255, 120, 120, 0.85)');
+                    return false;
+                }
+
+                return true;
+            });
+        }
+
+        function resolvePlanetBattles() {
+            if (gameOver) {
+                return;
+            }
+
+            bots = bots.filter((bot) => {
+                const distance = Math.hypot(player.x - bot.x, player.y - bot.y);
+                const collision = distance <= player.radius + bot.radius;
+
+                if (!collision) {
+                    return true;
+                }
+
+                if (player.shieldTimer > 0 || bot.shieldTimer > 0) {
+                    return true;
+                }
+
+                const massRatio = Math.min(player.mass, bot.mass) / Math.max(player.mass, bot.mass);
+                if (massRatio >= 1 - EQUAL_MASS_THRESHOLD) {
+                    player.launchTarget = findSafeSpot(300);
+                    bot.launchTarget = findSafeSpot(300);
+                    player.shieldTimer = SHIELD_DURATION;
+                    bot.shieldTimer = SHIELD_DURATION;
+                    return true;
+                }
+
+                if (player.mass >= bot.mass) {
+                    player.mass += bot.mass * PLANET_ABSORB_GAIN;
+                    createCombatDeathEffect(bot.x, bot.y, bot.radius * 1.2);
+                    updatePlayerRadius();
+                    updateMassDisplay();
+                    return false;
+                }
+
+                bot.mass += player.mass * PLANET_ABSORB_GAIN;
+                updateEntityRadius(bot);
+                createCombatDeathEffect(player.x, player.y, player.radius * 1.2);
+                player.mass = 0;
+                updatePlayerRadius();
+                updateMassDisplay();
+                gameOver = true;
+                setHazardStatus('Du bist gestorben', '#ff5d5d');
+                return true;
+            });
+
+            for (let i = 0; i < bots.length; i += 1) {
+                for (let j = i + 1; j < bots.length; j += 1) {
+                    const a = bots[i];
+                    const b = bots[j];
+                    const distance = Math.hypot(a.x - b.x, a.y - b.y);
+                    const collision = distance <= a.radius + b.radius;
+
+                    if (!collision) {
+                        continue;
+                    }
+
+                    if (a.shieldTimer > 0 || b.shieldTimer > 0) {
+                        continue;
+                    }
+
+                    const massRatio = Math.min(a.mass, b.mass) / Math.max(a.mass, b.mass);
+                    if (massRatio >= 1 - EQUAL_MASS_THRESHOLD) {
+                        a.launchTarget = findSafeSpot(300);
+                        b.launchTarget = findSafeSpot(300);
+                        a.shieldTimer = SHIELD_DURATION;
+                        b.shieldTimer = SHIELD_DURATION;
+                        continue;
+                    }
+
+                    if (a.mass >= b.mass) {
+                        a.mass += b.mass * PLANET_ABSORB_GAIN;
+                        updateEntityRadius(a);
+                        createCombatDeathEffect(b.x, b.y, b.radius * 1.1);
+                        bots.splice(j, 1);
+                        j -= 1;
+                    } else {
+                        b.mass += a.mass * PLANET_ABSORB_GAIN;
+                        updateEntityRadius(b);
+                        createCombatDeathEffect(a.x, a.y, a.radius * 1.1);
+                        bots.splice(i, 1);
+                        i -= 1;
+                        break;
+                    }
+                }
+            }
+
+            updateBotsDisplay();
+        }
+
+        function handleBotThreat() {
+            let botIsNear = false;
+
+            for (let i = 0; i < bots.length; i += 1) {
+                const bot = bots[i];
+                const distance = Math.hypot(player.x - bot.x, player.y - bot.y);
+                if (distance <= player.radius + bot.radius + 100) {
+                    botIsNear = true;
+                }
+            }
+
+            if (!gameOver && botIsNear) {
+                setHazardStatus('ALARM: Feind-Bot jagt dich', '#ff7c6b');
+            }
+        }
+
+        function handlePoisonCloudDamage(deltaSeconds) {
+            if (player.shieldTimer > 0) {
+                setHazardStatus(`SCHILD: ${player.shieldTimer.toFixed(1)}s`, '#ffe566');
+                return;
+            }
+            let isNearPoison = false;
+            let isInPoisonCenter = false;
+            let isInsidePoison = false;
+            const nearMargin = 90;
+            const sz = getSafeRect();
+
+            isInsidePoison = circleOutsideSafeZone(player.x, player.y, player.radius);
+
+            if (!isInsidePoison) {
+                const shrunkSz = { x: sz.x + nearMargin, y: sz.y + nearMargin, w: sz.w - nearMargin * 2, h: sz.h - nearMargin * 2 };
+                isNearPoison = (player.x - player.radius < shrunkSz.x || player.x + player.radius > shrunkSz.x + shrunkSz.w ||
+                                player.y - player.radius < shrunkSz.y || player.y + player.radius > shrunkSz.y + shrunkSz.h);
+            }
+
+            {
+                const centerInset = sz.w * 0.25;
+                const czx = sz.x + centerInset;
+                const czy = sz.y + centerInset;
+                const czw = sz.w - centerInset * 2;
+                const czh = sz.h - centerInset * 2;
+                isInPoisonCenter = isInsidePoison && (player.x < czx || player.x > czx + czw || player.y < czy || player.y > czy + czh);
+            }
+
+            if (isInsidePoison && !gameOver) {
+                if (!wasInsidePoison) {
+                    wasInsidePoison = true;
+                    poisonTickTimer = 0;
+                    poisonTicksTaken = 0;
+                    poisonMassAtEntry = Math.max(1, Math.ceil(player.mass));
+                }
+
+                poisonTickTimer += deltaSeconds;
+                while (poisonTickTimer >= POISON_TICK_SECONDS && !gameOver) {
+                    poisonTickTimer -= POISON_TICK_SECONDS;
+
+                    poisonTicksTaken += 1;
+                    const poisonLossPerTick = poisonMassAtEntry * 0.25;
+                    player.mass = Math.floor(poisonMassAtEntry - poisonTicksTaken * poisonLossPerTick);
+
+                    if (player.mass <= 0) {
+                        createCombatDeathEffect(player.x, player.y, Math.max(player.radius * 1.2, 14));
+                        player.mass = 0;
+                        gameOver = true;
+                        setHazardStatus('Du bist gestorben', '#ff5d5d');
+                    } else if (isInPoisonCenter) {
+                        createPoisonDamageEffect(player.x, player.y, Math.max(player.radius * 0.55, 10));
+                        setHazardStatus(`KRITISCH: ${player.mass} Masse`, '#ff5d5d');
+                    } else {
+                        createPoisonDamageEffect(player.x, player.y, Math.max(player.radius * 0.45, 8));
+                        setHazardStatus(`WARNUNG: ${player.mass} Masse`, '#ff9f5d');
+                    }
+
+                    updatePlayerRadius();
+                    updateMassDisplay();
+                }
+
+                if (!gameOver && poisonTicksTaken === 0) {
+                    if (isInPoisonCenter) {
+                        setHazardStatus(`KRITISCH: ${Math.ceil(player.mass)} Leben`, '#ff5d5d');
+                    } else {
+                        setHazardStatus(`WARNUNG: ${Math.ceil(player.mass)} Leben`, '#ff9f5d');
+                    }
+                }
+                return;
+            }
+
+            wasInsidePoison = false;
+            poisonTickTimer = 0;
+            poisonTicksTaken = 0;
+            poisonMassAtEntry = 0;
+
+            if (isNearPoison) {
+                setHazardStatus('Achtung: Giftwolke in der Naehe', '#ffd966');
+            } else {
+                setHazardStatus('Sicher', '#9effc3');
+            }
+        }
+
+
+
+        function drawPlayer() {
+            const sx = player.x - camera.x;
+            const sy = player.y - camera.y;
+
+            ctx.fillStyle = 'cyan';
+            ctx.beginPath();
+            ctx.arc(sx, sy, player.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (player.shieldTimer > 0) {
+                const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 150);
+                ctx.strokeStyle = `rgba(255, 230, 60, ${pulse})`;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(sx, sy, player.radius + 7, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = 'white';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText(Math.max(0, Math.ceil(player.mass)), sx, sy - player.radius - 10);
+
+            ctx.fillStyle = '#7ef7ff';
+            ctx.font = 'bold 13px Arial';
+            ctx.fillText('Ich', sx, sy - player.radius - 24);
+        }
+
+        function drawBots() {
+            ctx.textAlign = 'center';
+            ctx.font = '14px Arial';
+
+            bots.forEach((bot) => {
+                const sx = bot.x - camera.x;
+                const sy = bot.y - camera.y;
+
+                if (sx + bot.radius < 0 || sx - bot.radius > canvas.width || sy + bot.radius < 0 || sy - bot.radius > canvas.height) {
+                    return;
+                }
+
+                ctx.fillStyle = bot.fillColor;
+                ctx.beginPath();
+                ctx.arc(sx, sy, bot.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = bot.ringColor;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(sx, sy, bot.radius * 0.72, 0, Math.PI * 2);
+                ctx.stroke();
+
+                if (bot.shieldTimer > 0) {
+                    const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 150);
+                    ctx.strokeStyle = `rgba(255, 230, 60, ${pulse})`;
+                    ctx.lineWidth = 4;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, bot.radius + 7, 0, Math.PI * 2);
+                    ctx.stroke();
+                }
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '13px Arial';
+                ctx.fillText(Math.max(0, Math.ceil(bot.mass)), sx, sy - bot.radius - 8);
+
+                ctx.fillStyle = 'rgba(255,220,120,0.9)';
+                ctx.font = 'bold 12px Arial';
+                ctx.fillText(bot.name, sx, sy - bot.radius - 22);
+            });
+        }
+
+        function updateCamera() {
+            camera.x = player.x - canvas.width / 2;
+            camera.y = player.y - canvas.height / 2;
+
+            camera.x = Math.max(0, Math.min(world.width - canvas.width, camera.x));
+            camera.y = Math.max(0, Math.min(world.height - canvas.height, camera.y));
+        }
+
+        function drawBackground() {
+            if (bgImage.complete && bgImage.naturalWidth > 0) {
+                ctx.drawImage(bgImage, -camera.x, -camera.y, world.width, world.height);
+            } else {
+                ctx.fillStyle = '#000011';
+                ctx.fillRect(-camera.x, -camera.y, world.width, world.height);
+            }
+        }
+
+        function drawWorldBorder() {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(-camera.x, -camera.y, world.width, world.height);
+        }
+
+        function drawEndCloud() {
+            const sx = endCloud.x - camera.x;
+            const sy = endCloud.y - camera.y;
+
+            const gradient = ctx.createRadialGradient(sx, sy, 20, sx, sy, endCloud.radius);
+            gradient.addColorStop(0, 'rgba(120, 210, 255, 0.85)');
+            gradient.addColorStop(0.5, 'rgba(70, 160, 255, 0.55)');
+            gradient.addColorStop(1, 'rgba(40, 120, 210, 0.12)');
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(sx, sy, endCloud.radius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = 'rgba(200, 240, 255, 0.45)';
+            ctx.beginPath();
+            ctx.arc(sx - 36, sy - 22, 26, 0, Math.PI * 2);
+            ctx.arc(sx + 34, sy - 12, 22, 0, Math.PI * 2);
+            ctx.arc(sx + 8, sy + 26, 30, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(180, 235, 255, 0.75)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(sx, sy, endCloud.radius * 0.72, 0, Math.PI * 2);
+            ctx.stroke();
+
+            ctx.fillStyle = '#dff6ff';
+            ctx.font = '18px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('Blaue Wolke', sx, sy + 6);
+        }
+
+        function drawPoisonClouds() {
+            const sz = getSafeRect();
+            const wx = -camera.x;
+            const wy = -camera.y;
+            const ww = world.width;
+            const wh = world.height;
+            const rx = sz.x - camera.x;
+            const ry = sz.y - camera.y;
+            const rw = sz.w;
+            const rh = sz.h;
+
+            ctx.fillStyle = 'rgba(100, 210, 45, 0.55)';
+            ctx.fillRect(wx, wy, ww, ry - wy);
+            ctx.fillRect(wx, ry + rh, ww, (wy + wh) - (ry + rh));
+            ctx.fillRect(wx, ry, rx - wx, rh);
+            ctx.fillRect(rx + rw, ry, (wx + ww) - (rx + rw), rh);
+
+            ctx.strokeStyle = 'rgba(180, 255, 100, 0.9)';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(rx, ry, rw, rh);
+        }
+
+        function checkWinCondition() {
+            const distance = Math.hypot(player.x - endCloud.x, player.y - endCloud.y);
+            if (distance <= player.radius + endCloud.radius * 0.55) {
+                gameWon = true;
+            }
+        }
+
+        function checkMatchEnding() {
+            if (gameWon) {
+                endMatch('Ziel erreicht');
+                return;
+            }
+
+            if (gameOver) {
+                matchEnded = true;
+                matchResultTitle = 'Du bist gestorben';
+                const leader = getMassLeader();
+                matchResultText = `Gewinner: ${leader.leaderName} (${leader.leaderMass} Masse)`;
+                setHazardStatus('Du bist gestorben', '#ff5d5d');
+                return;
+            }
+
+            if (bots.length === 0) {
+                endMatch('Alle Bots zerstoert');
+            }
+        }
+
+        function drawMatchMessage() {
+            if (!matchEnded) {
+                return;
+            }
+
+            ctx.fillStyle = 'rgba(8, 20, 44, 0.75)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#b9ecff';
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 42px Arial';
+            ctx.fillText(matchResultTitle, canvas.width / 2, canvas.height / 2 - 8);
+
+            ctx.font = '22px Arial';
+            ctx.fillText(matchResultText, canvas.width / 2, canvas.height / 2 + 32);
+        }
+
+        function drawStartMessage() {
+            if (gameStarted || matchEnded) {
+                return;
+            }
+
+            ctx.fillStyle = 'rgba(8, 20, 44, 0.5)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#d2f7ff';
+            ctx.textAlign = 'center';
+            ctx.font = 'bold 40px Arial';
+            ctx.fillText('Druecke Start', canvas.width / 2, canvas.height / 2 - 8);
+
+            ctx.font = '20px Arial';
+            ctx.fillText('Erst dann beginnt die Runde.', canvas.width / 2, canvas.height / 2 + 28);
+        }
+
+        function gameLoop() {
+            const now = performance.now();
+            const deltaSeconds = Math.min(0.05, (now - lastFrameTime) / 1000);
+            lastFrameTime = now;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (gameStarted && !matchEnded) {
+                matchElapsedSeconds += deltaSeconds;
+                player.shieldTimer = Math.max(0, player.shieldTimer - deltaSeconds);
+                bots.forEach((bot) => { bot.shieldTimer = Math.max(0, bot.shieldTimer - deltaSeconds); });
+                updatePoisonCloudGrowth(deltaSeconds);
+                movePlayer();
+                moveBots();
+                moveAsteroids();
+                destroyAsteroidsInPoisonClouds();
+                applyPoisonDamageToBots(deltaSeconds);
+                collectAsteroidsForBots();
+                collectAsteroids();
+                handlePoisonCloudDamage(deltaSeconds);
+                resolvePlanetBattles();
+                handleBotThreat();
+                checkWinCondition();
+                checkMatchEnding();
+            }
+            updateExplosions(deltaSeconds);
+
+            updateCamera();
+            drawBackground();
+            drawWorldBorder();
+            drawEndCloud();
+            drawPoisonClouds();
+            drawAsteroids();
+            drawBots();
+            drawExplosions();
+            drawPlayer();
+            drawMatchMessage();
+            drawStartMessage();
+
+            updatePositionDisplay();
+            requestAnimationFrame(gameLoop);
+        }
+
+        updatePlayerRadius();
+        resetGame();
+        setInterval(() => {
+            if (!gameStarted || matchEnded) {
+                return;
+            }
+            updateLowestMass();
+            createAsteroid();
+            createAsteroid();
+            createAsteroid();
+        }, 1000);
+
+        startButton.addEventListener('click', () => {
+            startGame();
+        });
+
+        restartButton.addEventListener('click', () => {
+            resetGame();
+            startGame();
+        });
+        
+        gameLoop();
+    </script>
+</body>
+</html>
