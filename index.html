@@ -1,62 +1,1681 @@
   <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Planet Eating</title>
     <style>
-        body { margin: 0; overflow: hidden; background: #000011; }
+        :root {
+            --bg-deep: #07111f;
+            --bg-mid: #0d2238;
+            --panel: rgba(8, 19, 36, 0.72);
+            --panel-border: rgba(170, 223, 255, 0.24);
+            --text-main: #eff7ff;
+            --text-soft: #9fc0dd;
+            --accent: #7ce4ff;
+            --accent-strong: #ffd36b;
+            --success: #9effc3;
+            --danger: #ff7a7a;
+            --shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background:
+                radial-gradient(circle at top, rgba(52, 103, 158, 0.3), transparent 36%),
+                radial-gradient(circle at bottom left, rgba(6, 62, 112, 0.38), transparent 32%),
+                linear-gradient(180deg, var(--bg-mid), var(--bg-deep) 55%, #030811);
+            color: var(--text-main);
+            font-family: 'Candara', 'Trebuchet MS', 'Verdana', sans-serif;
+        }
         canvas { display: block; }
         #ui {
             position: absolute;
-            top: 10px;
-            left: 10px;
+            top: 8px;
+            left: 8px;
+            z-index: 12;
             color: white;
-            font-family: Arial;
-            font-size: 20px;
-            line-height: 1.4;
-            background: rgba(0, 0, 0, 0.35);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            padding: 10px 14px;
-            border-radius: 8px;
+            font-size: 17px;
+            line-height: 1.3;
+            background: rgba(3, 12, 24, 0.68);
+            border: 1px solid rgba(170, 223, 255, 0.2);
+            padding: 8px 12px;
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            min-width: 210px;
         }
-        #restart {
+        #home-screen {
+            position: absolute;
+            inset: 0;
+            z-index: 18;
+            overflow: hidden;
+            pointer-events: auto;
+        }
+        #home-screen.hidden {
+            display: none;
+        }
+        .home-backdrop {
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 50% 45%, rgba(56, 114, 162, 0.26), transparent 24%),
+                radial-gradient(circle at 18% 20%, rgba(255, 185, 90, 0.08), transparent 18%),
+                radial-gradient(circle at 82% 24%, rgba(76, 192, 255, 0.12), transparent 20%),
+                linear-gradient(180deg, rgba(4, 9, 19, 0.15), rgba(2, 7, 15, 0.72));
+            backdrop-filter: blur(6px);
+        }
+        .starfield,
+        .starfield::before,
+        .starfield::after {
+            position: absolute;
+            inset: 0;
+            content: '';
+            background-image:
+                radial-gradient(circle, rgba(255,255,255,0.7) 0 1px, transparent 1.5px),
+                radial-gradient(circle, rgba(124,228,255,0.45) 0 1px, transparent 1.5px),
+                radial-gradient(circle, rgba(255,211,107,0.35) 0 1px, transparent 1.5px);
+            background-size: 180px 180px, 240px 240px, 320px 320px;
+            background-position: 10px 20px, 100px 120px, 80px 40px;
+            opacity: 0.45;
+            animation: drift 24s linear infinite;
+        }
+        .starfield::before {
+            opacity: 0.3;
+            transform: scale(1.1);
+            animation-duration: 32s;
+        }
+        .starfield::after {
+            opacity: 0.18;
+            transform: scale(1.24);
+            animation-duration: 40s;
+        }
+        .home-layout {
+            position: relative;
+            height: 100%;
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 74px 18px 16px;
+            display: block;
+            z-index: 2;
+        }
+        .side-column,
+        .info-panel,
+        .planet-carousel,
+        .planet-callout {
+            background: var(--panel);
+            border: 1px solid var(--panel-border);
+            border-radius: 22px;
+            box-shadow: var(--shadow);
+        }
+        .side-column,
+        .info-panel {
+            padding: 12px;
+        }
+        .side-column {
+            position: absolute;
+            left: 50%;
+            top: 10px;
+            transform: translateX(-50%);
+            z-index: 6;
+            width: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 7px 9px;
+            border-radius: 999px;
+            background: rgba(8, 19, 36, 0.84);
+        }
+        .side-button,
+        .primary-button,
+        .skin-button,
+        .planet-icon {
+            border: 0;
+            cursor: pointer;
+            transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease, opacity 160ms ease;
+        }
+        .side-button,
+        .primary-button {
+            width: 100%;
+            padding: 9px 10px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: var(--text-main);
+            background: linear-gradient(135deg, rgba(38, 87, 124, 0.82), rgba(53, 156, 157, 0.72));
+            border: 1px solid rgba(198, 233, 255, 0.28);
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+        }
+        .side-button:hover,
+        .primary-button:hover,
+        .skin-button:hover,
+        .planet-icon:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+        }
+        .side-button + .side-button,
+        .side-button + .side-text {
+            margin-top: 10px;
+        }
+        .side-column .side-button {
+            width: auto;
+            min-width: 68px;
+            font-size: 11px;
+            padding: 6px 8px;
+            line-height: 1;
+            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
+        }
+        .side-column .side-button + .side-button,
+        .side-column .side-button + .side-text {
+            margin-top: 0;
+        }
+        .menu-button.active {
+            background: linear-gradient(135deg, #8ff2da, #68d2ff);
+            color: #05202a;
+            box-shadow: 0 14px 28px rgba(77, 192, 223, 0.28);
+        }
+        .primary-button {
+            min-width: 0;
+            background: linear-gradient(135deg, #ffb36b, #ffdf8a);
+            color: #2b1600;
+            box-shadow: 0 16px 32px rgba(255, 166, 92, 0.3);
+        }
+        .side-text,
+        .info-copy,
+        .planet-caption {
+            color: var(--text-soft);
+            line-height: 1.5;
+            font-size: 13px;
+        }
+        .side-column .side-text {
+            margin: 0 0 0 2px;
+            font-size: 10px;
+            line-height: 1.2;
+            max-width: 210px;
+            white-space: nowrap;
+        }
+        .center-column {
+            position: relative;
+            z-index: 3;
+            min-width: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            min-height: 0;
+        }
+        .planet-stage {
+            position: relative;
+            width: min(100%, 420px);
+            height: min(48vh, 500px);
+            min-width: 0;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            perspective: 1400px;
+        }
+        .planet-info-button {
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 7;
+            width: min(92%, 360px);
+            border: 1px solid rgba(170, 223, 255, 0.34);
+            border-radius: 14px;
+            background: linear-gradient(135deg, rgba(11, 38, 58, 0.9), rgba(23, 79, 96, 0.88));
+            color: #e8f9ff;
+            padding: 10px 12px;
+            text-align: left;
+            cursor: default;
+            box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
+        }
+        .planet-info-button strong {
+            display: block;
+            font-size: 14px;
+            letter-spacing: 0.04em;
+        }
+        .planet-info-button span {
+            display: block;
+            font-size: 11px;
+            margin-top: 4px;
+            color: #b9d8ea;
+        }
+        .planet-info-button p {
+            margin: 6px 0 0;
+            font-size: 11px;
+            line-height: 1.35;
+            color: #d9eefb;
+        }
+        .planet-orbit {
+            position: absolute;
+            width: min(100%, 520px);
+            height: min(100%, 520px);
+            border-radius: 50%;
+            border: 1px solid rgba(159, 192, 221, 0.12);
+            box-shadow: inset 0 0 80px rgba(124, 228, 255, 0.06);
+        }
+        .planet-orbit::before,
+        .planet-orbit::after {
+            content: '';
+            position: absolute;
+            inset: 10%;
+            border-radius: 50%;
+            border: 1px dashed rgba(255, 255, 255, 0.08);
+            animation: spin 16s linear infinite;
+        }
+        .planet-orbit::after {
+            inset: 22%;
+            animation-duration: 24s;
+            animation-direction: reverse;
+        }
+        .planet-focus {
+            position: relative;
+            width: 284px;
+            height: 284px;
+            transform-style: preserve-3d;
+            transition: transform 180ms ease, filter 180ms ease;
+            filter: drop-shadow(0 0 32px rgba(124, 228, 255, 0.28));
+        }
+        .planet-photo {
+            position: absolute;
+            inset: 8%;
+            width: 84%;
+            height: 84%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid rgba(255, 226, 128, 0.85);
+            box-shadow: 0 0 0 4px rgba(255, 226, 128, 0.3), 0 0 26px rgba(255, 226, 128, 0.35);
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 180ms ease, transform 180ms ease;
+            pointer-events: none;
+        }
+        .planet-focus.photo-mode .planet-photo {
+            opacity: 1;
+        }
+        .planet-focus.photo-mode .planet-core,
+        .planet-focus.photo-mode .planet-effects,
+        .planet-focus.photo-mode .planet-highlight {
+            opacity: 0.14;
+        }
+        .planet-focus.photo-mode .planet-ring {
+            opacity: 0.42;
+        }
+        .planet-focus.pulse {
+            animation: planetPulse 420ms ease;
+        }
+        .planet-glow,
+        .planet-core,
+        .planet-ring,
+        .planet-highlight,
+        .planet-effects,
+        .planet-effects::before,
+        .planet-effects::after,
+        .planet-core::before,
+        .planet-core::after {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            content: '';
+        }
+        .planet-glow {
+            inset: -18%;
+            background: radial-gradient(circle, var(--planet-glow, rgba(124, 228, 255, 0.4)) 0%, rgba(124, 228, 255, 0.02) 62%, transparent 70%);
+            animation: glowPulse 3.6s ease-in-out infinite;
+        }
+        .planet-ring {
+            inset: -8%;
+            border: 2px solid rgba(255, 255, 255, 0.18);
+            box-shadow: 0 0 0 18px rgba(124, 228, 255, 0.04);
+            transform: rotateX(72deg) rotateZ(var(--ring-rotation, 8deg));
+        }
+        .planet-core {
+            background: radial-gradient(circle at 30% 24%, rgba(255,255,255,0.85), transparent 15%), var(--planet-surface, radial-gradient(circle at 30% 30%, #ffdf8c, #ff7e42 55%, #8b2708 100%));
+            border: 2px solid rgba(255, 255, 255, 0.18);
+            box-shadow: inset -24px -30px 46px rgba(0, 0, 0, 0.34), inset 20px 16px 36px rgba(255, 255, 255, 0.08);
+            animation: idleRotate 20s linear infinite;
+            overflow: hidden;
+        }
+        .planet-core::before {
+            inset: 12%;
+            background: var(--planet-overlay, radial-gradient(circle at 60% 40%, rgba(255,255,255,0.16), transparent 55%));
+            mix-blend-mode: screen;
+            opacity: 0.72;
+            animation: swirl 8s ease-in-out infinite alternate;
+        }
+        .planet-core::after {
+            inset: auto 16% 18% 16%;
+            height: 18%;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            filter: blur(14px);
+        }
+        .planet-highlight {
+            inset: 8%;
+            background: radial-gradient(circle at 32% 26%, rgba(255,255,255,0.34), transparent 20%);
+            mix-blend-mode: screen;
+            pointer-events: none;
+        }
+        .planet-glow,
+        .planet-ring,
+        .planet-core,
+        .planet-effects,
+        .planet-highlight {
+            pointer-events: none;
+        }
+        .planet-effects {
+            inset: -2%;
+            background: var(--planet-effects, radial-gradient(circle at 50% 50%, transparent, transparent));
+            mix-blend-mode: screen;
+            opacity: 0.88;
+            animation: effectDrift 4.8s ease-in-out infinite alternate;
+        }
+        .planet-effects::before {
+            inset: 10%;
+            background: var(--planet-particles, radial-gradient(circle at 50% 50%, rgba(255,255,255,0.12), transparent 70%));
+            animation: shimmer 5.5s linear infinite;
+        }
+        .planet-effects::after {
+            inset: -10%;
+            background: var(--planet-outer, radial-gradient(circle at 50% 50%, rgba(255,255,255,0.06), transparent 72%));
+            filter: blur(8px);
+            opacity: 0.7;
+            animation: glowPulse 2.8s ease-in-out infinite;
+        }
+        .planet-meta {
+            position: absolute;
+            bottom: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: min(92%, 264px);
+            padding: 8px 10px;
+            border-radius: 16px;
+            background: rgba(5, 14, 26, 0.74);
+            border: 1px solid rgba(170, 223, 255, 0.22);
+            box-shadow: var(--shadow);
+            text-align: left;
+        }
+        .planet-name-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+        .planet-name-row h2 {
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: 0.04em;
+        }
+        .planet-tag {
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: #091423;
+            background: linear-gradient(135deg, #ffe498, #7ce4ff);
+        }
+        .planet-caption {
+            margin: 7px 0 0;
+        }
+        .planet-callout {
+            position: absolute;
+            top: 50%;
+            right: -4px;
+            width: 164px;
+            padding: 10px;
+            transform: translateY(-50%) translateX(24px);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 180ms ease, transform 180ms ease;
+        }
+        .planet-callout.visible {
+            opacity: 1;
+            transform: translateY(-50%) translateX(0);
+        }
+        .callout-label {
+            font-size: 12px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: var(--accent-strong);
+        }
+        .callout-value {
+            font-size: 20px;
+            font-weight: 700;
+            margin: 4px 0 8px;
+        }
+        .xp-bar {
+            width: 100%;
+            height: 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+            border: 1px solid rgba(170, 223, 255, 0.2);
+        }
+        .xp-fill {
+            height: 100%;
+            width: var(--xp-value, 0%);
+            border-radius: 999px;
+            background: linear-gradient(90deg, #7ce4ff, #ffd36b);
+            box-shadow: 0 0 18px rgba(124, 228, 255, 0.34);
+        }
+        .planet-carousel {
+            width: min(90%, 760px);
+            padding: 10px;
+        }
+        .panel-stack {
+            display: grid;
+            gap: 12px;
+        }
+        .home-section {
+            display: none;
+            gap: 12px;
+        }
+        .home-section.active {
+            display: grid;
+        }
+        .quick-card {
+            padding: 11px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(170, 223, 255, 0.14);
+        }
+        .quick-card strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-soft);
+        }
+        .home-actions {
+            display: grid;
+            gap: 8px;
+        }
+        .secondary-button {
+            width: 100%;
+            padding: 11px 13px;
+            border-radius: 13px;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-main);
+            background: rgba(124, 228, 255, 0.12);
+            border: 1px solid rgba(170, 223, 255, 0.22);
+            cursor: pointer;
+            transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+        }
+        .secondary-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22);
+            background: rgba(124, 228, 255, 0.18);
+        }
+        .shop-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+        }
+        .shop-card {
+            padding: 11px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(170, 223, 255, 0.14);
+        }
+        .shop-card span {
+            display: block;
+            margin-top: 6px;
+            color: var(--accent-strong);
+            font-size: 20px;
+            font-weight: 700;
+        }
+        .planet-carousel h3,
+        .info-panel h3,
+        .side-column h3 {
+            margin: 0 0 12px;
+            font-size: 13px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--accent-strong);
+        }
+        .planet-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+            gap: 9px;
+        }
+        .planet-icon {
+            position: relative;
+            padding: 10px 8px 8px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            border: 1px solid rgba(170, 223, 255, 0.12);
+        }
+        .planet-icon.active {
+            background: linear-gradient(135deg, rgba(255, 221, 106, 0.26), rgba(124, 228, 255, 0.18));
+            border-color: rgba(255, 226, 90, 0.95);
+            box-shadow: 0 0 0 2px rgba(255, 226, 90, 0.65), 0 0 24px rgba(255, 226, 90, 0.34);
+        }
+        .planet-icon.locked {
+            opacity: 0.56;
+        }
+        .planet-icon-dot {
+            width: 42px;
+            height: 42px;
+            margin: 0 auto 6px;
+            border-radius: 50%;
+            background: var(--icon-surface, radial-gradient(circle at 30% 30%, #fff, #4ac2ff 50%, #103f69 100%));
+            box-shadow: inset -8px -8px 18px rgba(0, 0, 0, 0.28), 0 0 22px rgba(124, 228, 255, 0.22);
+            overflow: hidden;
+        }
+        .planet-icon-dot img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .planet-icon strong,
+        .planet-icon span {
+            display: block;
+            text-align: center;
+        }
+        .planet-icon strong {
+            font-size: 13px;
+        }
+        .planet-icon span {
+            font-size: 11px;
+            margin-top: 4px;
+            color: var(--text-soft);
+        }
+        .lock-badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            font-size: 16px;
+        }
+        .info-panel {
+            position: relative;
+            z-index: 6;
+            display: grid;
+            gap: 10px;
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: min(226px, calc(100vw - 40px));
+        }
+        .panel-stack {
+            gap: 12px;
+        }
+        .home-section.active {
+            gap: 12px;
+        }
+        .stat-row header {
+            font-size: 13px;
+        }
+        .gadget-card,
+        .quick-card,
+        .shop-card {
+            padding: 12px;
+            border-radius: 14px;
+        }
+        .planet-carousel {
+            width: 100%;
+            padding: 12px;
+        }
+        .planet-list {
+            grid-template-columns: 1fr;
+        }
+        .planet-icon {
+            display: grid;
+            grid-template-columns: 42px 1fr;
+            align-items: center;
+            gap: 10px;
+            text-align: left;
+            padding: 10px;
+        }
+        .planet-icon-dot {
+            width: 42px;
+            height: 42px;
+            margin: 0;
+        }
+        .planet-icon strong,
+        .planet-icon span {
+            text-align: left;
+        }
+        .planet-icon span {
+            margin-top: 2px;
+        }
+        .stat-row {
+            display: grid;
+            gap: 8px;
+        }
+        .stat-row header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+        }
+        .stat-bar {
+            height: 12px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+            border: 1px solid rgba(170, 223, 255, 0.18);
+        }
+        .stat-fill {
+            height: 100%;
+            border-radius: 999px;
+            width: var(--value, 0%);
+            background: linear-gradient(90deg, rgba(124, 228, 255, 0.92), rgba(255, 211, 107, 0.92));
+        }
+        .unlock-list {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            gap: 8px;
+        }
+        .unlock-list li {
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(170, 223, 255, 0.16);
+            color: var(--text-soft);
+            font-size: 12px;
+            line-height: 1.35;
+        }
+        .trophy-path {
+            display: grid;
+            gap: 10px;
+        }
+        .trophy-path-track {
+            position: relative;
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(170, 223, 255, 0.2);
+            overflow: hidden;
+        }
+        .trophy-path-fill {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: var(--path-progress, 0%);
+            border-radius: 999px;
+            background: linear-gradient(90deg, #7ce4ff, #ffd36b);
+            box-shadow: 0 0 18px rgba(124, 228, 255, 0.3);
+        }
+        .trophy-path-milestones {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
+            gap: 6px;
+        }
+        .trophy-path-milestone {
+            text-align: center;
+            color: var(--text-soft);
+            font-size: 11px;
+        }
+        .trophy-path-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin: 0 auto 5px;
+            border: 1px solid rgba(170, 223, 255, 0.4);
+            background: rgba(255, 255, 255, 0.15);
+        }
+        .trophy-path-milestone.reached .trophy-path-dot {
+            background: #9effc3;
+            border-color: rgba(158, 255, 195, 0.95);
+        }
+        .trophy-path-milestone.current .trophy-path-dot {
+            background: #ffd36b;
+            border-color: rgba(255, 211, 107, 0.98);
+            box-shadow: 0 0 14px rgba(255, 211, 107, 0.42);
+        }
+        .trophy-path-milestone.next .trophy-path-dot {
+            background: #7ce4ff;
+            border-color: rgba(124, 228, 255, 0.95);
+        }
+        .gadget-card {
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(170, 223, 255, 0.14);
+        }
+        .gadget-card strong,
+        .skin-strip strong {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-soft);
+        }
+        .skin-strip {
+            display: grid;
+            gap: 10px;
+        }
+        .skin-list {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .skin-button {
+            min-width: 76px;
+            padding: 8px 10px;
+            border-radius: 12px;
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(170, 223, 255, 0.14);
+        }
+        .skin-button.active {
+            background: linear-gradient(135deg, rgba(124, 228, 255, 0.24), rgba(255, 211, 107, 0.16));
+            border-color: rgba(255, 226, 149, 0.4);
+        }
+        .bottom-cta {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            gap: 7px;
+            align-items: stretch;
+            justify-content: flex-start;
+            flex-wrap: nowrap;
+            flex-direction: column;
+            position: absolute;
+            right: 20px;
+            bottom: 16px;
+            transform: none;
+            width: 112px;
+        }
+        .status-ribbon {
+            padding: 6px 8px;
+            border-radius: 10px;
+            background: rgba(4, 13, 24, 0.74);
+            border: 1px solid rgba(170, 223, 255, 0.18);
+            color: var(--text-soft);
+            font-size: 10px;
+            max-width: none;
+            text-align: center;
+        }
+        .hud-title {
+            color: var(--accent-strong);
+            font-size: 12px;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+        .hud-goal {
+            color: var(--text-soft);
+            font-size: 14px;
+            margin-top: 6px;
+        }
+        @keyframes drift {
+            from { transform: translateY(0); }
+            to { transform: translateY(-20px); }
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        @keyframes idleRotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        @keyframes effectDrift {
+            from { transform: scale(0.98) rotate(0deg); }
+            to { transform: scale(1.04) rotate(8deg); }
+        }
+        @keyframes swirl {
+            from { transform: rotate(0deg) scale(0.98); }
+            to { transform: rotate(8deg) scale(1.04); }
+        }
+        @keyframes glowPulse {
+            0%, 100% { transform: scale(0.98); opacity: 0.78; }
+            50% { transform: scale(1.04); opacity: 1; }
+        }
+        @keyframes shimmer {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        @keyframes planetPulse {
+            0% { transform: scale(1); }
+            40% { transform: scale(1.06); }
+            100% { transform: scale(1); }
+        }
+        @keyframes buttonPressFlash {
+            0% {
+                filter: brightness(1);
+                box-shadow: none;
+            }
+            38% {
+                filter: brightness(1.28);
+                box-shadow: 0 0 0 2px rgba(255, 224, 72, 0.95), 0 0 18px rgba(255, 224, 72, 0.8);
+            }
+            100% {
+                filter: brightness(1);
+                box-shadow: none;
+            }
+        }
+        @media (max-width: 1350px) {
+            .home-layout {
+                padding: 124px 14px 20px;
+                overflow-y: auto;
+            }
+            .side-column {
+                left: 50%;
+                top: 10px;
+                transform: translateX(-50%);
+                width: auto;
+                order: 2;
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            .center-column {
+                order: 1;
+                height: auto;
+            }
+            .info-panel {
+                position: static;
+                transform: none;
+                width: 100%;
+                order: 3;
+            }
+            .shop-grid {
+                grid-template-columns: 1fr;
+            }
+            .planet-stage {
+                width: 100%;
+                min-height: 390px;
+                height: 48vh;
+            }
+            .planet-callout {
+                top: auto;
+                bottom: 8px;
+                right: 50%;
+                transform: translateX(50%) translateY(24px);
+            }
+            .planet-callout.visible {
+                transform: translateX(50%) translateY(0);
+            }
+            .bottom-cta {
+                position: static;
+                transform: none;
+                width: 100%;
+                align-items: stretch;
+            }
+        }
+        @media (max-width: 720px) {
+            #ui {
+                top: auto;
+                bottom: 12px;
+                left: 12px;
+                right: 12px;
+                min-width: 0;
+                font-size: 15px;
+            }
+            .home-topbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .resource-bar {
+                justify-content: stretch;
+            }
+            .resource-chip {
+                flex: 1 1 0;
+            }
+            .home-layout {
+                padding-top: 108px;
+            }
+            .side-column {
+                width: calc(100% - 24px);
+                border-radius: 16px;
+                white-space: normal;
+            }
+            .side-column .side-text {
+                max-width: 100%;
+                white-space: normal;
+                text-align: center;
+            }
+            .planet-focus {
+                width: 224px;
+                height: 224px;
+            }
+            .planet-stage {
+                min-width: 0;
+                min-height: 330px;
+                height: 42vh;
+            }
+            .planet-meta {
+                width: calc(100% - 24px);
+            }
+            .planet-name-row h2 {
+                font-size: 22px;
+            }
+            .bottom-cta {
+                flex-direction: column;
+            }
+            .primary-button {
+                width: 100%;
+            }
+            .shop-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Startscreen image mode with clickable hotspots */
+        #home-screen {
+            background: #02060d;
+        }
+        .home-backdrop {
+            background: #02060d;
+            filter: none;
+        }
+        .starfield {
+            display: none;
+        }
+        .home-overlay {
+            display: none;
+        }
+        .home-image-stage {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            display: grid;
+            place-items: center;
+            padding: 0;
+        }
+        .home-image-frame {
+            --home-ratio: 16 / 9;
+            position: relative;
+            width: min(100vw, calc(100vh * (var(--home-ratio))));
+            height: min(100vh, calc(100vw / (var(--home-ratio))));
+            overflow: hidden;
+        }
+        .home-image {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+            filter: brightness(1.22) contrast(1.08) saturate(1.08);
+            user-select: none;
+            pointer-events: none;
+        }
+        .home-image-light {
+            position: absolute;
+            inset: 0;
+            background: transparent;
+            pointer-events: none;
+        }
+        .image-center-planet {
+            position: absolute;
+            left: 33%;
+            top: 23%;
+            width: 34%;
+            height: 34%;
+            border-radius: 0;
+            object-fit: contain;
+            object-position: center;
+            filter: brightness(var(--center-planet-brightness, 1)) contrast(1.03) saturate(1.02);
+            border: 0;
+            box-shadow: none;
+            z-index: 5;
+            pointer-events: none;
+        }
+        .image-strip-highlight {
+            position: absolute;
+            border: 2px solid rgba(255, 222, 92, 0.98);
+            border-radius: 10px;
+            z-index: 7;
+            pointer-events: none;
+        }
+        .image-strip-buttons {
+            position: absolute;
+            inset: 0;
+            z-index: 8;
+            pointer-events: none;
+        }
+        .image-strip-button {
+            position: absolute;
+            border: 0;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 14px;
+            padding: 0;
+            pointer-events: auto;
+        }
+        .image-action-panel {
+            position: absolute;
+            right: 2.2%;
+            top: 7.2%;
+            width: min(34%, 420px);
+            min-width: 280px;
+            z-index: 9;
+            padding: 12px;
+            border-radius: 16px;
+            border: 1px solid rgba(170, 223, 255, 0.34);
+            background: rgba(4, 16, 30, 0.9);
+            box-shadow: 0 18px 36px rgba(0, 0, 0, 0.34);
+            display: none !important;
+        }
+        .image-action-panel.visible {
+            display: block;
+        }
+        .image-action-panel h4 {
+            margin: 0;
+            font-size: 14px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--accent-strong);
+        }
+        .image-action-panel p {
+            margin: 8px 0 10px;
+            color: var(--text-soft);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+        .image-action-stats {
+            display: grid;
+            gap: 8px;
+        }
+        .image-action-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 12px;
+            color: #d9eefb;
+        }
+        .image-action-close {
             margin-top: 10px;
             width: 100%;
-            background: #203a66;
-            color: #e7f2ff;
-            border: 1px solid #7bb6ff;
-            border-radius: 6px;
-            padding: 7px 10px;
-            font-size: 16px;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(170, 223, 255, 0.24);
+            background: rgba(124, 228, 255, 0.14);
+            color: var(--text-main);
+            font-size: 12px;
+            font-weight: 700;
             cursor: pointer;
         }
-        #restart:hover {
-            background: #2b4b83;
+        .image-action-close:hover {
+            background: rgba(124, 228, 255, 0.22);
         }
-        #start {
-            margin-top: 8px;
+        .image-hotspot {
+            position: absolute;
+            border: 0;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 16px;
+        }
+        .image-hotspot:focus-visible {
+            outline: 2px solid rgba(124, 228, 255, 0.85);
+            outline-offset: 2px;
+        }
+        .button-press-flash {
+            animation: buttonPressFlash 240ms ease-out;
+        }
+        #image-btn-planets {
+            left: 1.2%;
+            top: 79.8%;
+            width: 9.9%;
+            height: 16.8%;
+        }
+        #image-btn-shop {
+            left: 0.9%;
+            top: 24.2%;
+            width: 17.4%;
+            height: 10.6%;
+        }
+        #image-btn-gems {
+            left: 0.9%;
+            top: 30.1%;
+            width: 17.4%;
+            height: 5.4%;
+        }
+        #image-btn-trophies {
+            left: 0.9%;
+            top: 36.2%;
+            width: 17.4%;
+            height: 10.6%;
+        }
+        #image-btn-missions {
+            left: 0.9%;
+            top: 48.2%;
+            width: 17.4%;
+            height: 10.6%;
+        }
+        #image-btn-events {
+            left: 0.9%;
+            top: 60.1%;
+            width: 17.4%;
+            height: 10.6%;
+        }
+        #image-btn-focus {
+            left: 28.3%;
+            top: 17%;
+            width: 43.2%;
+            height: 52.5%;
+            border-radius: 50%;
+        }
+        #image-btn-start {
+            left: 38.2%;
+            top: 64.7%;
+            width: 21.2%;
+            height: 12.4%;
+        }
+        #image-btn-shopfocus {
+            right: 0.8%;
+            top: 60.4%;
+            width: 22.9%;
+            height: 16.5%;
+        }
+        #image-btn-trophies-top {
+            right: 0.4%;
+            top: 1.2%;
+            width: 27.6%;
+            height: 22.4%;
+        }
+        #image-btn-prev {
+            left: 22%;
+            top: 67.8%;
+            width: 6.2%;
+            height: 9.2%;
+        }
+        #image-btn-next {
+            left: 71.4%;
+            top: 67.8%;
+            width: 6.2%;
+            height: 9.2%;
+        }
+        #image-btn-settings {
+            right: 1.4%;
+            top: 3.4%;
+            width: 8.4%;
+            height: 13.2%;
+        }
+        #image-btn-planetstrip {
+            left: 12%;
+            top: 80.2%;
+            width: 87%;
+            height: 16.4%;
+            pointer-events: none;
+        }
+        #settings-screen {
+            position: absolute;
+            inset: 0;
+            z-index: 40;
+            background: linear-gradient(180deg, rgba(4, 10, 19, 0.96), rgba(3, 8, 16, 0.98));
+            color: var(--text-main);
+            display: none;
+            padding: 24px 18px;
+            overflow: auto;
+        }
+        #settings-screen.visible {
+            display: block;
+        }
+        .settings-shell {
+            max-width: 920px;
+            margin: 0 auto;
+            display: grid;
+            gap: 14px;
+        }
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(170, 223, 255, 0.22);
+            background: rgba(8, 20, 36, 0.88);
+        }
+        .settings-header h2 {
+            margin: 0;
+            font-size: 24px;
+            letter-spacing: 0.04em;
+        }
+        .settings-back {
+            border: 1px solid rgba(170, 223, 255, 0.22);
+            border-radius: 10px;
+            background: rgba(124, 228, 255, 0.14);
+            color: var(--text-main);
+            padding: 8px 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .settings-card {
+            padding: 14px;
+            border-radius: 14px;
+            border: 1px solid rgba(170, 223, 255, 0.2);
+            background: rgba(8, 20, 36, 0.82);
+            display: grid;
+            gap: 10px;
+        }
+        .settings-card h3 {
+            margin: 0;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            color: var(--accent-strong);
+        }
+        .settings-input,
+        .settings-select {
             width: 100%;
-            background: #1f6f3c;
-            color: #e8ffe8;
-            border: 1px solid #87e7a4;
-            border-radius: 6px;
-            padding: 7px 10px;
-            font-size: 16px;
+            border-radius: 10px;
+            border: 1px solid rgba(170, 223, 255, 0.2);
+            background: rgba(5, 14, 26, 0.94);
+            color: var(--text-main);
+            padding: 9px 10px;
+            font-size: 13px;
+        }
+        .settings-language-list {
+            display: grid;
+            gap: 6px;
+            max-height: 180px;
+            overflow: auto;
+            padding-right: 4px;
+        }
+        .settings-language-item {
+            width: 100%;
+            text-align: left;
+            border: 1px solid rgba(170, 223, 255, 0.2);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-main);
+            padding: 8px 10px;
             cursor: pointer;
         }
-        #start:hover {
-            background: #2a8a4c;
+        .settings-language-item.active {
+            border-color: rgba(255, 222, 92, 0.88);
+            background: rgba(255, 222, 92, 0.14);
+        }
+        .settings-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+        }
+        .settings-button {
+            border: 1px solid rgba(170, 223, 255, 0.22);
+            border-radius: 10px;
+            background: rgba(124, 228, 255, 0.14);
+            color: var(--text-main);
+            padding: 8px 10px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .settings-button.active {
+            border-color: rgba(158, 255, 195, 0.72);
+            background: rgba(158, 255, 195, 0.2);
+            color: #071b13;
+        }
+        .settings-volume {
+            width: 100%;
+        }
+        @media (max-width: 760px) {
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        .home-layout {
+            position: relative;
+            z-index: 2;
+            max-width: 1240px;
+            margin: 0 auto;
+            height: 100%;
+            padding: 26px 20px 18px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            display: none;
+        }
+        @media (max-width: 720px) {
+            .image-action-panel {
+                right: 2%;
+                left: 2%;
+                top: 6%;
+                width: auto;
+                min-width: 0;
+            }
+            #image-btn-planets,
+            #image-btn-shop,
+            #image-btn-gems,
+            #image-btn-trophies,
+            #image-btn-missions,
+            #image-btn-events {
+                width: 20%;
+            }
+            #image-btn-start {
+                width: 26%;
+                left: 37%;
+            }
+            #image-btn-shopfocus {
+                width: 26%;
+            }
+        }
+        .home-hero {
+            padding: 14px 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(170, 223, 255, 0.26);
+            background: rgba(3, 14, 30, 0.68);
+            box-shadow: 0 18px 44px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(4px);
+        }
+        .home-hero h1 {
+            margin: 0;
+            font-size: clamp(24px, 4.2vw, 36px);
+            letter-spacing: 0.04em;
+            color: #e7f6ff;
+        }
+        .home-hero p {
+            margin: 8px 0 0;
+            max-width: 860px;
+            color: #c0d9ee;
+            font-size: 14px;
+            line-height: 1.45;
+        }
+        .home-grid {
+            min-height: 0;
+            flex: 1;
+            display: grid;
+            grid-template-columns: 260px minmax(320px, 1fr) 300px;
+            gap: 14px;
+            align-items: stretch;
+        }
+        .side-column {
+            position: static;
+            transform: none;
+            width: 100%;
+            border-radius: 16px;
+            padding: 14px;
+            display: grid;
+            align-content: start;
+            gap: 10px;
+            background: rgba(5, 16, 31, 0.78);
+            border: 1px solid rgba(170, 223, 255, 0.2);
+        }
+        .side-column .side-button {
+            width: 100%;
+            min-width: 0;
+            font-size: 12px;
+            padding: 10px 12px;
+            border-radius: 12px;
+        }
+        .side-column .side-text {
+            margin: 2px 0 0;
+            font-size: 12px;
+            line-height: 1.4;
+            white-space: normal;
+            max-width: none;
+        }
+        .center-column {
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 18px;
+            border: 1px solid rgba(170, 223, 255, 0.22);
+            background: rgba(5, 16, 31, 0.66);
+            box-shadow: 0 20px 46px rgba(0, 0, 0, 0.28);
+        }
+        .planet-stage {
+            width: 100%;
+            height: auto;
+            min-height: 280px;
+            flex: 1;
+        }
+        .planet-focus {
+            width: min(56vw, 280px);
+            height: min(56vw, 280px);
+        }
+        .planet-callout {
+            width: 170px;
+            right: 6px;
+            top: 46%;
+        }
+        .bottom-cta {
+            position: static;
+            width: 100%;
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+        }
+        .primary-button {
+            width: 140px;
+            flex: 0 0 auto;
+        }
+        .status-ribbon {
+            flex: 1;
+            text-align: left;
+            font-size: 11px;
+        }
+        .info-panel {
+            position: static;
+            transform: none;
+            width: 100%;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 18px;
+            background: rgba(5, 16, 31, 0.78);
+            border: 1px solid rgba(170, 223, 255, 0.2);
+        }
+        .planet-carousel {
+            width: 100%;
+            padding: 0;
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+        }
+        .planet-list {
+            grid-template-columns: 1fr;
+        }
+        @media (max-width: 1100px) {
+            .home-layout {
+                height: auto;
+                min-height: 100%;
+                padding: 16px 12px;
+            }
+            .home-grid {
+                grid-template-columns: 1fr;
+            }
+            .planet-stage {
+                min-height: 320px;
+            }
+            .planet-focus {
+                width: 240px;
+                height: 240px;
+            }
+        }
+        @media (max-width: 640px) {
+            .home-hero p {
+                font-size: 13px;
+            }
+            .bottom-cta {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .primary-button {
+                width: 100%;
+            }
+            .status-ribbon {
+                text-align: center;
+            }
+            .planet-callout {
+                right: 50%;
+                top: auto;
+                bottom: 8px;
+                transform: translateX(50%) translateY(24px);
+            }
+            .planet-callout.visible {
+                transform: translateX(50%) translateY(0);
+            }
         }
     </style>
 </head>
 <body>
     <div id="ui">
+        <div class="hud-title">Rundenstatus</div>
         Masse: <span id="mass">100</span><br>
         Position: <span id="position">0, 0</span><br>
         Feind-Bots: <span id="bots">0</span><br>
         Warnung: <span id="hazard">Sicher</span><br>
-        Ziel: Blaue Wolke am rechten Rand<br>
-        <button id="start" type="button">Start</button>
-        <button id="restart" type="button">Nochmal</button>
+    </div>
+    <div id="home-screen">
+        <div class="home-backdrop"></div>
+        <div id="home-image-stage" class="home-image-stage">
+            <div id="home-image-frame" class="home-image-frame">
+                <img id="home-image" class="home-image" src="images/Startseite.jpeg" alt="Startseite" draggable="false">
+                <div class="home-image-light"></div>
+                <img id="image-center-planet" class="image-center-planet" src="images/lava.jpeg" alt="Aktiver Planet" draggable="false">
+                <div id="image-strip-highlight" class="image-strip-highlight"></div>
+                <div id="image-strip-buttons" class="image-strip-buttons"></div>
+                <button id="image-btn-planets" class="image-hotspot" type="button" aria-label="Planeten"></button>
+                <button id="image-btn-shop" class="image-hotspot" type="button" aria-label="Shop"></button>
+                <button id="image-btn-gems" class="image-hotspot" type="button" aria-label="Juwelen"></button>
+                <button id="image-btn-trophies" class="image-hotspot" type="button" aria-label="Trophaeen"></button>
+                <button id="image-btn-missions" class="image-hotspot" type="button" aria-label="Missionen"></button>
+                <button id="image-btn-events" class="image-hotspot" type="button" aria-label="Events"></button>
+                <button id="image-btn-focus" class="image-hotspot" type="button" aria-label="Planetenfokus"></button>
+                <button id="image-btn-start" class="image-hotspot" type="button" aria-label="Start"></button>
+                <button id="image-btn-trophies-top" class="image-hotspot" type="button" aria-label="Trophäen rechts oben"></button>
+                <button id="image-btn-shopfocus" class="image-hotspot" type="button" aria-label="Aktuellen Planeten ansehen"></button>
+                <button id="image-btn-prev" class="image-hotspot" type="button" aria-label="Vorheriger Planet"></button>
+                <button id="image-btn-next" class="image-hotspot" type="button" aria-label="Naechster Planet"></button>
+                <button id="image-btn-settings" class="image-hotspot" type="button" aria-label="Einstellungen"></button>
+                <button id="image-btn-planetstrip" class="image-hotspot" type="button" aria-label="Planetenleiste"></button>
+                <div id="image-action-panel" class="image-action-panel" aria-live="polite">
+                    <h4 id="image-action-title">Bereich</h4>
+                    <p id="image-action-copy">Waehle links einen Bereich aus.</p>
+                    <div id="image-action-stats" class="image-action-stats"></div>
+                    <button id="image-action-close" class="image-action-close" type="button">Schliessen</button>
+                </div>
+            </div>
+        </div>
+        <div class="home-overlay"></div>
+        <div class="home-layout">
+            <header class="home-hero">
+                <h1>Planet Eating</h1>
+                <p>Steuere deinen Planeten, sammle Masse und setze dich gegen feindliche Bots durch. Waehle einen Planeten, passe ihn mit Skins an und starte direkt in die naechste Runde.</p>
+            </header>
+
+            <div class="home-grid">
+                <aside class="side-column">
+                    <button id="nav-planets" class="side-button menu-button active" type="button">Planeten</button>
+                    <button id="nav-shop" class="side-button menu-button" type="button">Shop</button>
+                    <p id="side-message" class="side-text">Mit den Buttons wechselst du zwischen Planeten und Shop.</p>
+                </aside>
+
+                <section class="center-column">
+                    <div id="planet-stage" class="planet-stage">
+                        <div class="planet-orbit"></div>
+                        <button id="planet-focus" class="planet-focus" type="button" aria-label="Aktuellen Planeten anzeigen">
+                            <span class="planet-glow"></span>
+                            <span class="planet-ring"></span>
+                            <span class="planet-core"></span>
+                            <span class="planet-effects"></span>
+                            <span class="planet-highlight"></span>
+                            <img id="planet-photo" class="planet-photo" src="images/lava.jpeg" alt="Planet" draggable="false">
+                        </button>
+                        <div id="planet-callout" class="planet-callout">
+                            <div class="callout-label">Level</div>
+                            <div id="callout-level" class="callout-value">12</div>
+                            <div class="callout-label">Gadget</div>
+                            <div id="callout-gadget" class="callout-value">Sonnenfackel</div>
+                            <div class="callout-label">XP</div>
+                            <div class="xp-bar"><div id="callout-xp" class="xp-fill"></div></div>
+                        </div>
+                    </div>
+
+                    <div class="bottom-cta">
+                        <button id="start-game" class="primary-button" type="button">Start</button>
+                        <div id="status-ribbon" class="status-ribbon">Aktiver Planet: Pyron</div>
+                    </div>
+                </section>
+
+                <aside class="info-panel">
+                    <div class="panel-stack">
+                        <section id="section-planets" class="home-section active">
+                            <h3>Planeten</h3>
+                            <div class="planet-carousel">
+                                <div id="planet-list" class="planet-list"></div>
+                            </div>
+                            <div class="skin-strip">
+                                <strong>Skins</strong>
+                                <div id="skin-list" class="skin-list"></div>
+                            </div>
+                        </section>
+
+                        <section id="section-shop" class="home-section">
+                            <h3>Shop</h3>
+                            <div class="shop-grid">
+                                <div class="shop-card">Trophäen<span id="shop-trophies">1280</span></div>
+                                <div class="shop-card">Kristalle<span id="shop-crystals">460</span></div>
+                                <div class="shop-card">Schrott<span id="shop-scrap">92</span></div>
+                            </div>
+                            <div class="quick-card">
+                                <strong>Angebot</strong>
+                                <p id="shop-copy" class="info-copy">Hier kannst du spaeter Skins, Effekte und neue Planeten kaufen.</p>
+                            </div>
+                            <div class="home-actions">
+                                <button id="shop-focus-planet" class="secondary-button" type="button">Aktuellen Planeten ansehen</button>
+                            </div>
+                        </section>
+
+                        <section id="section-trophies" class="home-section">
+                            <h3>Trophäen</h3>
+                            <div class="quick-card">
+                                <strong>Trophäen Pfad</strong>
+                                <div class="stat-row">
+                                    <header>
+                                        <span>Aktuell</span>
+                                        <span id="trophy-total">0 Trophäen</span>
+                                    </header>
+                                </div>
+                                <div class="trophy-path">
+                                    <div class="trophy-path-track">
+                                        <div id="trophy-path-fill" class="trophy-path-fill"></div>
+                                    </div>
+                                    <ul id="trophy-path-milestones" class="trophy-path-milestones"></ul>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </div>
+    <div id="settings-screen" aria-hidden="true">
+        <div class="settings-shell">
+            <header class="settings-header">
+                <h2>Einstellungen</h2>
+                <button id="settings-back" class="settings-back" type="button">Zurück</button>
+            </header>
+            <div class="settings-grid">
+                <section class="settings-card">
+                    <h3>Sprache</h3>
+                    <input id="language-search" class="settings-input" type="text" placeholder="Sprache suchen..." autocomplete="off">
+                    <div id="language-list" class="settings-language-list"></div>
+                </section>
+                <section class="settings-card">
+                    <h3>Musik</h3>
+                    <div class="settings-row">
+                        <span>Status</span>
+                        <button id="music-toggle" class="settings-button active" type="button">An</button>
+                    </div>
+                </section>
+            </div>
+        </div>
     </div>
     <canvas id="game"></canvas>
     <script>
@@ -66,8 +1685,62 @@
         const positionLabel = document.getElementById('position');
         const botsLabel = document.getElementById('bots');
         const hazardLabel = document.getElementById('hazard');
-        const startButton = document.getElementById('start');
-        const restartButton = document.getElementById('restart');
+        const uiPanel = document.getElementById('ui');
+        const homeScreen = document.getElementById('home-screen');
+        const planetStage = document.getElementById('planet-stage');
+        const planetFocus = document.getElementById('planet-focus');
+        const planetPhoto = document.getElementById('planet-photo');
+        const planetCallout = document.getElementById('planet-callout');
+        const calloutLevel = document.getElementById('callout-level');
+        const calloutGadget = document.getElementById('callout-gadget');
+        const calloutXp = document.getElementById('callout-xp');
+        const planetList = document.getElementById('planet-list');
+        const startGameButton = document.getElementById('start-game');
+        const navPlanetsButton = document.getElementById('nav-planets');
+        const navShopButton = document.getElementById('nav-shop');
+        const navTrophiesButton = document.getElementById('nav-trophies');
+        const sideMessage = document.getElementById('side-message');
+        const statusRibbon = document.getElementById('status-ribbon');
+        const skinList = document.getElementById('skin-list');
+        const sectionPlanets = document.getElementById('section-planets');
+        const sectionShop = document.getElementById('section-shop');
+        const sectionTrophies = document.getElementById('section-trophies');
+        const shopFocusPlanetButton = document.getElementById('shop-focus-planet');
+        const shopCopy = document.getElementById('shop-copy');
+        const shopTrophiesLabel = document.getElementById('shop-trophies');
+        const shopCrystalsLabel = document.getElementById('shop-crystals');
+        const trophyTotalLabel = document.getElementById('trophy-total');
+        const trophyPathFill = document.getElementById('trophy-path-fill');
+        const trophyPathMilestones = document.getElementById('trophy-path-milestones');
+        const homeImage = document.getElementById('home-image');
+        const homeImageFrame = document.getElementById('home-image-frame');
+        const imageCenterPlanet = document.getElementById('image-center-planet');
+        const imageStripHighlight = document.getElementById('image-strip-highlight');
+        const imageStripButtons = document.getElementById('image-strip-buttons');
+        const imageStartButton = document.getElementById('image-btn-start');
+        const imagePlanetsButton = document.getElementById('image-btn-planets');
+        const imageShopButton = document.getElementById('image-btn-shop');
+        const imageGemsButton = document.getElementById('image-btn-gems');
+        const imageTrophiesButton = document.getElementById('image-btn-trophies');
+        const imageMissionsButton = document.getElementById('image-btn-missions');
+        const imageEventsButton = document.getElementById('image-btn-events');
+        const imageShopFocusButton = document.getElementById('image-btn-shopfocus');
+        const imageFocusButton = document.getElementById('image-btn-focus');
+        const imageTopTrophiesButton = document.getElementById('image-btn-trophies-top');
+        const imagePrevButton = document.getElementById('image-btn-prev');
+        const imageNextButton = document.getElementById('image-btn-next');
+        const imageSettingsButton = document.getElementById('image-btn-settings');
+        const imagePlanetStripButton = document.getElementById('image-btn-planetstrip');
+        const imageActionPanel = document.getElementById('image-action-panel');
+        const imageActionTitle = document.getElementById('image-action-title');
+        const imageActionCopy = document.getElementById('image-action-copy');
+        const imageActionStats = document.getElementById('image-action-stats');
+        const imageActionClose = document.getElementById('image-action-close');
+        const settingsScreen = document.getElementById('settings-screen');
+        const settingsBackButton = document.getElementById('settings-back');
+        const languageSearchInput = document.getElementById('language-search');
+        const languageList = document.getElementById('language-list');
+        const musicToggleButton = document.getElementById('music-toggle');
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
@@ -94,13 +1767,7 @@
         const LAUNCH_SPEED = 14;
 
         const bgImage = new Image();
-        bgImage.src = 'images/ChatGPT Image 22. Apr. 2026, 15_53_54.png';
-
-        const endCloud = {
-            x: world.width - 180,
-            y: world.height / 2,
-            radius: 130
-        };
+        bgImage.src = 'images/hintergrund-map.png';
 
         const SAFE_ZONE_MARGIN = 38;
         const safeZone = {
@@ -146,6 +1813,197 @@
         const POISON_TICK_SECONDS = 1;
         const POISON_GROWTH_DURATION_SECONDS = 300;
         const POISON_GROWTH_STEP_SECONDS = 0.5;
+        const TROPHIES_PER_PLANET_UNLOCK = 1000;
+        const TROPHIES_PER_GEM_MINI_UNLOCK = 250;
+        const GEM_MINI_REWARD = 20;
+        const BOT_TROPHY_REWARD = 120;
+        const WIN_TROPHY_REWARD = 300;
+        const CLEAR_BONUS_TROPHY_REWARD = 180;
+
+        const PLANET_LIBRARY = [
+            {
+                id: 'pyron',
+                name: 'Pyron',
+                role: 'Offensiv',
+                description: 'Ein Vulkanplanet mit lodernden Ausbrüchen, der Gegner mit brachialem Druck überrollt.',
+                gadget: 'Sonnenfackel',
+                gadgetDescription: 'Zündet eine Plasmafontäne, die beim Start einen kurzen Schub und ein helles Aufglühen auslöst.',
+                level: 12,
+                xp: 74,
+                life: 76,
+                damage: 88,
+                ambience: 'Lava blubbert im Kern und Funken ziehen über die Oberfläche.',
+                unlocked: true,
+                skins: [
+                    {
+                        name: 'Magma',
+                        surface: 'radial-gradient(circle at 30% 24%, rgba(255,255,255,0.88), transparent 15%), radial-gradient(circle at 38% 35%, #ffd86b 0%, #ff8f42 30%, #b33312 62%, #4b0a05 100%)',
+                        overlay: 'radial-gradient(circle at 60% 40%, rgba(255, 204, 92, 0.42), transparent 42%), radial-gradient(circle at 38% 64%, rgba(255, 83, 30, 0.24), transparent 30%)',
+                        effects: 'conic-gradient(from 140deg, transparent 0 20%, rgba(255, 204, 92, 0.22) 20% 28%, transparent 28% 46%, rgba(255, 99, 71, 0.24) 46% 56%, transparent 56% 100%)',
+                        particles: 'radial-gradient(circle at 28% 25%, rgba(255, 245, 220, 0.5) 0 4%, transparent 6%), radial-gradient(circle at 72% 32%, rgba(255, 160, 80, 0.32) 0 3%, transparent 5%), radial-gradient(circle at 54% 78%, rgba(255, 220, 120, 0.3) 0 3%, transparent 5%)',
+                        outer: 'radial-gradient(circle, rgba(255, 132, 64, 0.28) 0%, rgba(255, 132, 64, 0) 72%)',
+                        glow: 'rgba(255, 132, 64, 0.42)',
+                        icon: 'radial-gradient(circle at 30% 30%, #ffe3a1, #ff8f42 48%, #71210e 100%)',
+                        ringRotation: '10deg',
+                        playerFill: '#ff8f42',
+                        playerRing: '#ffd36b'
+                    },
+                    {
+                        name: 'Solar',
+                        surface: 'radial-gradient(circle at 30% 24%, rgba(255,255,255,0.9), transparent 15%), radial-gradient(circle at 36% 28%, #fff4b5 0%, #ffcf63 30%, #ff8a39 60%, #7d250f 100%)',
+                        overlay: 'radial-gradient(circle at 62% 44%, rgba(255, 244, 181, 0.45), transparent 42%), radial-gradient(circle at 36% 72%, rgba(255, 138, 57, 0.22), transparent 30%)',
+                        effects: 'conic-gradient(from 80deg, transparent 0 12%, rgba(255, 222, 120, 0.3) 12% 24%, transparent 24% 48%, rgba(255, 164, 76, 0.24) 48% 58%, transparent 58% 100%)',
+                        particles: 'radial-gradient(circle at 26% 20%, rgba(255,255,255,0.52) 0 4%, transparent 6%), radial-gradient(circle at 78% 38%, rgba(255, 220, 120, 0.36) 0 3%, transparent 5%), radial-gradient(circle at 40% 76%, rgba(255, 175, 80, 0.28) 0 3%, transparent 5%)',
+                        outer: 'radial-gradient(circle, rgba(255, 214, 104, 0.26) 0%, rgba(255, 214, 104, 0) 74%)',
+                        glow: 'rgba(255, 214, 104, 0.4)',
+                        icon: 'radial-gradient(circle at 30% 30%, #fff7cc, #ffcf63 50%, #8f3b11 100%)',
+                        ringRotation: '18deg',
+                        playerFill: '#ffcf63',
+                        playerRing: '#fff2bf'
+                    }
+                ]
+            },
+            {
+                id: 'glacira',
+                name: 'Glacira',
+                role: 'Kontrolle',
+                description: 'Eine gefrorene Kugel mit splitterndem Eis, langsamem Kern und kräftigem Gegendruck.',
+                gadget: 'Polarimpuls',
+                gadgetDescription: 'Legt eine Frostwelle um den Planeten und stabilisiert ihn beim Anflug auf schwere Ziele.',
+                level: 9,
+                xp: 52,
+                life: 91,
+                damage: 63,
+                ambience: 'Eisfelder knacken, Frostnebel zieht am Rand entlang.',
+                unlocked: true,
+                skins: [
+                    {
+                        name: 'Frost',
+                        surface: 'radial-gradient(circle at 30% 24%, rgba(255,255,255,0.92), transparent 15%), radial-gradient(circle at 34% 30%, #dff7ff 0%, #8fd9ff 34%, #3476b3 62%, #123356 100%)',
+                        overlay: 'radial-gradient(circle at 58% 40%, rgba(255, 255, 255, 0.34), transparent 45%), linear-gradient(135deg, transparent 40%, rgba(255,255,255,0.22) 48%, transparent 56%)',
+                        effects: 'conic-gradient(from 160deg, transparent 0 18%, rgba(171, 231, 255, 0.18) 18% 26%, transparent 26% 52%, rgba(124, 228, 255, 0.24) 52% 62%, transparent 62% 100%)',
+                        particles: 'radial-gradient(circle at 24% 26%, rgba(255,255,255,0.44) 0 3%, transparent 5%), radial-gradient(circle at 74% 30%, rgba(180, 236, 255, 0.34) 0 3%, transparent 5%), radial-gradient(circle at 52% 74%, rgba(230, 247, 255, 0.3) 0 3%, transparent 5%)',
+                        outer: 'radial-gradient(circle, rgba(124, 228, 255, 0.22) 0%, rgba(124, 228, 255, 0) 72%)',
+                        glow: 'rgba(124, 228, 255, 0.34)',
+                        icon: 'radial-gradient(circle at 30% 30%, #f0fbff, #8fd9ff 50%, #1e537a 100%)',
+                        ringRotation: '-12deg',
+                        playerFill: '#8fd9ff',
+                        playerRing: '#e0f8ff'
+                    },
+                    {
+                        name: 'Aurora',
+                        surface: 'radial-gradient(circle at 30% 24%, rgba(255,255,255,0.92), transparent 15%), radial-gradient(circle at 36% 30%, #d8fff8 0%, #7fe8d7 30%, #4389d7 62%, #18285a 100%)',
+                        overlay: 'radial-gradient(circle at 60% 42%, rgba(182, 255, 238, 0.28), transparent 42%), linear-gradient(145deg, transparent 40%, rgba(180,255,240,0.22) 50%, transparent 60%)',
+                        effects: 'conic-gradient(from 110deg, transparent 0 16%, rgba(128, 255, 222, 0.18) 16% 24%, transparent 24% 46%, rgba(129, 206, 255, 0.24) 46% 58%, transparent 58% 100%)',
+                        particles: 'radial-gradient(circle at 22% 22%, rgba(255,255,255,0.4) 0 3%, transparent 5%), radial-gradient(circle at 76% 34%, rgba(162, 255, 235, 0.3) 0 3%, transparent 5%), radial-gradient(circle at 44% 78%, rgba(180, 228, 255, 0.3) 0 3%, transparent 5%)',
+                        outer: 'radial-gradient(circle, rgba(127, 232, 215, 0.22) 0%, rgba(127, 232, 215, 0) 74%)',
+                        glow: 'rgba(127, 232, 215, 0.34)',
+                        icon: 'radial-gradient(circle at 30% 30%, #ebfffb, #7fe8d7 50%, #264e7d 100%)',
+                        ringRotation: '22deg',
+                        playerFill: '#7fe8d7',
+                        playerRing: '#e5fffb'
+                    }
+                ]
+            },
+            {
+                id: 'voltaris',
+                name: 'Voltaris',
+                role: 'Tempo',
+                description: 'Ein geladener Sturmplanet, dessen Blitze bei jeder Bewegung am Mantel entlangzucken.',
+                gadget: 'Kettenblitz',
+                gadgetDescription: 'Lädt den Kern auf, lässt die Ringzone aufleuchten und gibt dem Start einen aggressiven Impuls.',
+                level: 11,
+                xp: 67,
+                life: 69,
+                damage: 82,
+                ambience: 'Elektrische Arcs zucken, Wolkenbänder rotieren unruhig.',
+                unlocked: true,
+                skins: [
+                    {
+                        name: 'Storm',
+                        surface: 'radial-gradient(circle at 30% 24%, rgba(255,255,255,0.92), transparent 15%), radial-gradient(circle at 38% 30%, #d9d2ff 0%, #8b7bff 34%, #4f4bd4 62%, #171449 100%)',
+                        overlay: 'radial-gradient(circle at 60% 44%, rgba(217, 210, 255, 0.32), transparent 44%), linear-gradient(125deg, transparent 42%, rgba(255,255,255,0.16) 47%, transparent 52%, rgba(255,225,120,0.22) 57%, transparent 62%)',
+                        effects: 'conic-gradient(from 70deg, transparent 0 16%, rgba(255, 225, 120, 0.34) 16% 20%, transparent 20% 48%, rgba(160, 140, 255, 0.2) 48% 58%, transparent 58% 100%)',
+                        particles: 'radial-gradient(circle at 24% 24%, rgba(255,255,255,0.42) 0 3%, transparent 5%), radial-gradient(circle at 74% 32%, rgba(255, 225, 120, 0.3) 0 3%, transparent 5%), radial-gradient(circle at 50% 76%, rgba(200, 190, 255, 0.28) 0 3%, transparent 5%)',
+                        outer: 'radial-gradient(circle, rgba(139, 123, 255, 0.24) 0%, rgba(139, 123, 255, 0) 72%)',
+                        glow: 'rgba(139, 123, 255, 0.34)',
+                        icon: 'radial-gradient(circle at 30% 30%, #efeaff, #8b7bff 52%, #25206f 100%)',
+                        ringRotation: '8deg',
+                        playerFill: '#8b7bff',
+                        playerRing: '#ffe178'
+                    },
+                    {
+                        name: 'Ion',
+                        surface: 'radial-gradient(circle at 30% 24%, rgba(255,255,255,0.9), transparent 15%), radial-gradient(circle at 36% 30%, #f8ffd4 0%, #9cff7a 28%, #34a76c 58%, #123a2b 100%)',
+                        overlay: 'radial-gradient(circle at 60% 40%, rgba(248,255,212,0.28), transparent 42%), linear-gradient(130deg, transparent 42%, rgba(255,255,255,0.14) 47%, transparent 52%, rgba(156,255,122,0.24) 57%, transparent 62%)',
+                        effects: 'conic-gradient(from 120deg, transparent 0 16%, rgba(248, 255, 212, 0.24) 16% 20%, transparent 20% 46%, rgba(156, 255, 122, 0.22) 46% 58%, transparent 58% 100%)',
+                        particles: 'radial-gradient(circle at 26% 22%, rgba(255,255,255,0.4) 0 3%, transparent 5%), radial-gradient(circle at 78% 34%, rgba(214,255,157,0.28) 0 3%, transparent 5%), radial-gradient(circle at 48% 76%, rgba(156,255,122,0.28) 0 3%, transparent 5%)',
+                        outer: 'radial-gradient(circle, rgba(156, 255, 122, 0.24) 0%, rgba(156, 255, 122, 0) 72%)',
+                        glow: 'rgba(156, 255, 122, 0.32)',
+                        icon: 'radial-gradient(circle at 30% 30%, #f8ffd4, #9cff7a 50%, #17543a 100%)',
+                        ringRotation: '-18deg',
+                        playerFill: '#9cff7a',
+                        playerRing: '#f8ffd4'
+                    }
+                ]
+            },
+            {
+                id: 'abyssor',
+                name: 'Abyssor',
+                role: 'Mythisch',
+                description: 'Ein dunkler Kernplanet, der erst nach weiteren Trophäen freigeschaltet wird.',
+                gadget: 'Gravitationsbruch',
+                gadgetDescription: 'Noch gesperrt.',
+                level: 0,
+                xp: 0,
+                life: 94,
+                damage: 95,
+                ambience: 'Gesperrt bis 1600 Trophäen.',
+                unlocked: false,
+                skins: [
+                    {
+                        name: 'Locked',
+                        surface: 'radial-gradient(circle at 30% 24%, rgba(255,255,255,0.4), transparent 15%), radial-gradient(circle at 36% 30%, #9aa7b8 0%, #526173 38%, #1e2734 68%, #090d13 100%)',
+                        overlay: 'radial-gradient(circle at 60% 44%, rgba(255,255,255,0.12), transparent 44%)',
+                        effects: 'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.06), transparent 72%)',
+                        particles: 'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.08) 0 2%, transparent 4%)',
+                        outer: 'radial-gradient(circle, rgba(200, 210, 220, 0.12) 0%, rgba(200, 210, 220, 0) 72%)',
+                        glow: 'rgba(160, 180, 200, 0.18)',
+                        icon: 'radial-gradient(circle at 30% 30%, #cfd8e1, #526173 52%, #090d13 100%)',
+                        ringRotation: '0deg',
+                        playerFill: '#526173',
+                        playerRing: '#cfd8e1'
+                    }
+                ]
+            }
+        ];
+
+        const HOME_PLANET_OPTIONS = [
+            { name: 'Lava', image: 'images/lava.jpeg', basePlanetIndex: 0, skinIndex: 0 },
+            { name: 'Eis', image: 'images/eis.jpeg', basePlanetIndex: 1, skinIndex: 0 },
+            { name: 'Sturm', image: 'images/Sturm.jpeg', basePlanetIndex: 2, skinIndex: 0 },
+            { name: 'Natur', image: 'images/natur.jpeg', basePlanetIndex: 1, skinIndex: 1 },
+            { name: 'Radioaktiv', image: 'images/radioaktiv.jpeg', basePlanetIndex: 2, skinIndex: 1 },
+            { name: 'Schatten', image: 'images/schatten.jpeg', basePlanetIndex: 2, skinIndex: 0 },
+            { name: 'Stein', image: 'images/stein.jpeg', basePlanetIndex: 0, skinIndex: 0 },
+            { name: 'Wind', image: 'images/wind.jpeg', basePlanetIndex: 2, skinIndex: 1 },
+            { name: 'Wasser', image: 'images/wasser.jpeg', basePlanetIndex: 1, skinIndex: 1 },
+            { name: 'Alien', image: 'images/alien.jpeg', basePlanetIndex: 0, skinIndex: 1 }
+        ];
+        const IMAGE_STRIP_LAYOUT = {
+            left: 0.3,
+            top: 75.9,
+            width: 98.6,
+            height: 19.7,
+            gap: 1.17,
+            driftCorrectionPerSlot: 0.12
+        };
+        const IMAGE_STRIP_HIGHLIGHT_FIT = {
+            offsetX: 0.16,
+            offsetY: 0.24,
+            shrinkWidth: 0.32,
+            shrinkHeight: 0.48
+        };
 
         let gameWon = false;
         let gameOver = false;
@@ -166,12 +2024,756 @@
         let asteroids = [];
         let bots = [];
         let explosions = [];
+        let selectedPlanetIndex = 0;
+        let selectedSkinIndex = 0;
+        let selectedHomePlanetIndex = 0;
+        let homeReturnTimer = null;
+        let planetCalloutTimer = null;
+        let homePointerTilt = { x: 0, y: 0 };
+        let activeHomeSection = 'planets';
+        let activeImagePanel = '';
+        let progression = {
+            trophies: 0,
+            crystals: 0,
+            scrap: 0
+        };
         let keys = {
             ArrowUp: false,
             ArrowDown: false,
             ArrowLeft: false,
             ArrowRight: false
         };
+        let settingsOpen = false;
+        const centerPlanetBrightnessCache = {};
+        const CENTER_PLANET_TARGET_LUMA = 130;
+        const LANGUAGE_OPTIONS = [
+            { code: 'de', label: 'Deutsch' },
+            { code: 'en', label: 'English' },
+            { code: 'fr', label: 'Français' },
+            { code: 'it', label: 'Italiano' },
+            { code: 'es', label: 'Español' },
+            { code: 'pt', label: 'Português' },
+            { code: 'nl', label: 'Nederlands' },
+            { code: 'pl', label: 'Polski' },
+            { code: 'tr', label: 'Türkçe' },
+            { code: 'ru', label: 'Russkiy' },
+            { code: 'uk', label: 'Українська' },
+            { code: 'cs', label: 'Čeština' },
+            { code: 'sk', label: 'Slovenčina' },
+            { code: 'hu', label: 'Magyar' },
+            { code: 'ro', label: 'Română' },
+            { code: 'bg', label: 'Български' },
+            { code: 'hr', label: 'Hrvatski' },
+            { code: 'sr', label: 'Srpski' },
+            { code: 'sl', label: 'Slovenščina' },
+            { code: 'bs', label: 'Bosanski' },
+            { code: 'sq', label: 'Shqip' },
+            { code: 'el', label: 'Ελληνικά' },
+            { code: 'sv', label: 'Svenska' },
+            { code: 'no', label: 'Norsk' },
+            { code: 'da', label: 'Dansk' },
+            { code: 'fi', label: 'Suomi' },
+            { code: 'et', label: 'Eesti' },
+            { code: 'lv', label: 'Latviešu' },
+            { code: 'lt', label: 'Lietuvių' },
+            { code: 'ga', label: 'Gaeilge' },
+            { code: 'is', label: 'Íslenska' },
+            { code: 'mt', label: 'Malti' },
+            { code: 'ca', label: 'Català' },
+            { code: 'eu', label: 'Euskara' },
+            { code: 'gl', label: 'Galego' },
+            { code: 'ar', label: 'العربية' },
+            { code: 'he', label: 'Ivrit' },
+            { code: 'fa', label: 'فارسی' },
+            { code: 'hi', label: 'Hindi' },
+            { code: 'bn', label: 'Bangla' },
+            { code: 'ur', label: 'Urdu' },
+            { code: 'ta', label: 'Tamil' },
+            { code: 'te', label: 'Telugu' },
+            { code: 'mr', label: 'Marathi' },
+            { code: 'gu', label: 'Gujarati' },
+            { code: 'pa', label: 'Punjabi' },
+            { code: 'id', label: 'Bahasa Indonesia' },
+            { code: 'ms', label: 'Bahasa Melayu' },
+            { code: 'th', label: 'Thai' },
+            { code: 'vi', label: 'Tiếng Việt' },
+            { code: 'ko', label: '한국어' },
+            { code: 'ja', label: '日本語' },
+            { code: 'zh', label: '中文' },
+            { code: 'sw', label: 'Kiswahili' },
+            { code: 'af', label: 'Afrikaans' },
+            { code: 'mk', label: 'Македонски' },
+            { code: 'hy', label: 'Հայերեն' },
+            { code: 'ka', label: 'ქართული' }
+        ];
+        const appSettings = {
+            language: 'de',
+            musicEnabled: true
+        };
+        let audioContext = null;
+        let musicLoopTimer = null;
+        let musicStepIndex = 0;
+        const MUSIC_PATTERN = [220, 277.18, 329.63, 392.0, 329.63, 277.18];
+
+        function getUnlockablePlanets() {
+            return PLANET_LIBRARY.filter((planet) => !planet.unlocked);
+        }
+
+        function ensureAudioContext() {
+            try {
+                if (!audioContext) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (!AudioCtx) {
+                        return null;
+                    }
+                    audioContext = new AudioCtx();
+                }
+                if (audioContext.state === 'suspended') {
+                    audioContext.resume().catch(() => {});
+                }
+                return audioContext;
+            } catch (_error) {
+                return null;
+            }
+        }
+
+        function playTone(frequency, duration, options = {}) {
+            const context = ensureAudioContext();
+            if (!context) {
+                return;
+            }
+
+            const startTime = context.currentTime + (options.delay ?? 0);
+            const oscillator = context.createOscillator();
+            const gainNode = context.createGain();
+            const filterNode = context.createBiquadFilter();
+
+            oscillator.type = options.wave ?? 'sine';
+            oscillator.frequency.setValueAtTime(frequency, startTime);
+            if (options.endFrequency) {
+                oscillator.frequency.exponentialRampToValueAtTime(Math.max(30, options.endFrequency), startTime + duration);
+            }
+
+            filterNode.type = options.filterType ?? 'lowpass';
+            filterNode.frequency.value = options.cutoff ?? 1800;
+
+            const volume = options.volume ?? 0.08;
+            gainNode.gain.setValueAtTime(0.0001, startTime);
+            gainNode.gain.exponentialRampToValueAtTime(volume, startTime + 0.02);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+            oscillator.connect(filterNode);
+            filterNode.connect(gainNode);
+            gainNode.connect(context.destination);
+
+            oscillator.start(startTime);
+            oscillator.stop(startTime + duration + 0.03);
+        }
+
+        function playSoundEffect(type) {
+            switch (type) {
+                case 'button':
+                    playTone(740, 0.08, { wave: 'triangle', cutoff: 2200, volume: 0.03, endFrequency: 620 });
+                    break;
+                case 'switch':
+                    playTone(520, 0.07, { wave: 'triangle', cutoff: 1800, volume: 0.035 });
+                    playTone(660, 0.09, { wave: 'triangle', cutoff: 1800, volume: 0.03, delay: 0.05 });
+                    break;
+                case 'start':
+                    playTone(392, 0.12, { wave: 'sawtooth', cutoff: 1600, volume: 0.05 });
+                    playTone(523.25, 0.16, { wave: 'triangle', cutoff: 1900, volume: 0.05, delay: 0.08 });
+                    break;
+                case 'collect':
+                    playTone(860, 0.05, { wave: 'square', cutoff: 2400, volume: 0.025 });
+                    playTone(1140, 0.07, { wave: 'triangle', cutoff: 2600, volume: 0.022, delay: 0.03 });
+                    break;
+                case 'death':
+                    playTone(240, 0.26, { wave: 'sawtooth', cutoff: 900, volume: 0.07, endFrequency: 80 });
+                    break;
+                case 'poison-death':
+                    playTone(180, 0.3, { wave: 'square', cutoff: 700, volume: 0.06, endFrequency: 60 });
+                    break;
+                case 'victory':
+                    playTone(523.25, 0.12, { wave: 'triangle', cutoff: 2200, volume: 0.045 });
+                    playTone(659.25, 0.14, { wave: 'triangle', cutoff: 2200, volume: 0.045, delay: 0.08 });
+                    playTone(783.99, 0.18, { wave: 'triangle', cutoff: 2200, volume: 0.042, delay: 0.16 });
+                    break;
+                case 'defeat':
+                    playTone(280, 0.18, { wave: 'sawtooth', cutoff: 1200, volume: 0.05, endFrequency: 160 });
+                    playTone(180, 0.22, { wave: 'sawtooth', cutoff: 1000, volume: 0.045, delay: 0.08, endFrequency: 90 });
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        function stopMusicLoop() {
+            if (musicLoopTimer) {
+                clearInterval(musicLoopTimer);
+                musicLoopTimer = null;
+            }
+        }
+
+        function startMusicLoop() {
+            stopMusicLoop();
+            if (!appSettings.musicEnabled) {
+                return;
+            }
+
+            const context = ensureAudioContext();
+            if (!context) {
+                return;
+            }
+
+            musicStepIndex = 0;
+            musicLoopTimer = setInterval(() => {
+                if (!appSettings.musicEnabled) {
+                    stopMusicLoop();
+                    return;
+                }
+                const frequency = MUSIC_PATTERN[musicStepIndex % MUSIC_PATTERN.length];
+                playTone(frequency, 0.22, { wave: 'triangle', cutoff: 1200, volume: 0.022, endFrequency: frequency * 0.98 });
+                if (musicStepIndex % 3 === 0) {
+                    playTone(frequency / 2, 0.24, { wave: 'sine', cutoff: 800, volume: 0.014 });
+                }
+                musicStepIndex += 1;
+            }, 380);
+        }
+
+        function syncAudioState() {
+            if (appSettings.musicEnabled) {
+                startMusicLoop();
+            } else {
+                stopMusicLoop();
+            }
+        }
+
+        function attachButtonSound(button, soundType = 'button') {
+            if (!button) {
+                return;
+            }
+            button.addEventListener('click', () => {
+                playSoundEffect(soundType);
+            });
+        }
+
+        function triggerButtonFlash(button) {
+            if (!button) {
+                return;
+            }
+            button.classList.remove('button-press-flash');
+            // Force reflow so rapid repeated clicks restart the animation.
+            void button.offsetWidth;
+            button.classList.add('button-press-flash');
+            setTimeout(() => {
+                button.classList.remove('button-press-flash');
+            }, 260);
+        }
+
+        function getTrophyCycleProgress(stepSize) {
+            const cycleValue = progression.trophies % stepSize;
+            return {
+                value: cycleValue,
+                remaining: stepSize - cycleValue,
+                percent: (cycleValue / stepSize) * 100
+            };
+        }
+
+        function renderTrophyPath() {
+            const milestoneSize = TROPHIES_PER_PLANET_UNLOCK;
+            const milestones = Array.from({ length: 5 }, (_, index) => index * milestoneSize);
+            const trackMin = milestones[0];
+            const trackMax = milestones[milestones.length - 1];
+            const trackRange = Math.max(1, trackMax - trackMin);
+            const progress = ((progression.trophies - trackMin) / trackRange) * 100;
+            const clampedProgress = Math.max(0, Math.min(100, progress));
+            const currentMilestone = Math.floor(progression.trophies / milestoneSize) * milestoneSize;
+            const nextMilestone = currentMilestone + milestoneSize;
+
+            setFillWidth(trophyPathFill, clampedProgress);
+            trophyPathMilestones.innerHTML = milestones.map((milestone) => {
+                let state = '';
+                if (milestone < currentMilestone) {
+                    state = 'reached';
+                }
+                if (milestone === currentMilestone) {
+                    state = 'current';
+                }
+                if (milestone === nextMilestone) {
+                    state = 'next';
+                }
+
+                return `
+                    <li class="trophy-path-milestone ${state}">
+                        <span class="trophy-path-dot"></span>
+                        <span>${milestone}</span>
+                    </li>
+                `;
+            }).join('');
+        }
+
+        function unlockPlanetsFromMilestones(newMilestones) {
+            const unlockedNames = [];
+            if (newMilestones <= 0) {
+                return unlockedNames;
+            }
+
+            for (let i = 0; i < newMilestones; i += 1) {
+                const nextLockedPlanet = getUnlockablePlanets()[0];
+                if (!nextLockedPlanet) {
+                    break;
+                }
+                nextLockedPlanet.unlocked = true;
+                if (!nextLockedPlanet.ambience.toLowerCase().includes('freigeschaltet')) {
+                    nextLockedPlanet.ambience = `${nextLockedPlanet.ambience} Jetzt freigeschaltet.`;
+                }
+                unlockedNames.push(nextLockedPlanet.name);
+            }
+
+            return unlockedNames;
+        }
+
+        function awardTrophies(amount, sourceText) {
+            if (amount <= 0) {
+                return;
+            }
+
+            const previousTrophies = progression.trophies;
+            progression.trophies += amount;
+
+            const previousGemMilestones = Math.floor(previousTrophies / TROPHIES_PER_GEM_MINI_UNLOCK);
+            const currentGemMilestones = Math.floor(progression.trophies / TROPHIES_PER_GEM_MINI_UNLOCK);
+            const gainedGemMilestones = Math.max(0, currentGemMilestones - previousGemMilestones);
+            const crystalBonus = gainedGemMilestones * GEM_MINI_REWARD;
+            if (crystalBonus > 0) {
+                progression.crystals += crystalBonus;
+            }
+
+            const previousPlanetMilestones = Math.floor(previousTrophies / TROPHIES_PER_PLANET_UNLOCK);
+            const currentPlanetMilestones = Math.floor(progression.trophies / TROPHIES_PER_PLANET_UNLOCK);
+            const newlyUnlockedPlanets = unlockPlanetsFromMilestones(Math.max(0, currentPlanetMilestones - previousPlanetMilestones));
+
+            const messages = [`${sourceText}: +${amount} Trophäen`];
+            if (crystalBonus > 0) {
+                messages.push(`+${crystalBonus} Kristalle (Mini-Freischaltung)`);
+            }
+            if (newlyUnlockedPlanets.length > 0) {
+                messages.push(`Neuer Planet: ${newlyUnlockedPlanets.join(', ')}`);
+            }
+
+            sideMessage.textContent = messages.join(' | ');
+            updateHomeUi(`${messages[0]}`);
+        }
+
+        function syncProgressionFromCurrentTrophies() {
+            const plannedUnlocks = Math.floor(progression.trophies / TROPHIES_PER_PLANET_UNLOCK);
+            unlockPlanetsFromMilestones(plannedUnlocks);
+        }
+
+        function hideImageActionPanel() {
+            activeImagePanel = '';
+            imageActionPanel.classList.remove('visible');
+        }
+
+        function showImageActionPanel(panelType) {
+            activeImagePanel = panelType;
+        }
+
+        function updateImageActionPanel() {
+            if (!activeImagePanel) {
+                return;
+            }
+
+            const nextPlanetProgress = getTrophyCycleProgress(TROPHIES_PER_PLANET_UNLOCK);
+            const nextGemsProgress = getTrophyCycleProgress(TROPHIES_PER_GEM_MINI_UNLOCK);
+            const unlockedCount = PLANET_LIBRARY.filter((entry) => entry.unlocked).length;
+
+            if (activeImagePanel === 'trophies') {
+                imageActionTitle.textContent = 'Trophäen';
+                imageActionCopy.textContent = 'Jeder 1000er-Meilenstein schaltet einen neuen Planeten frei. Alle 250 Trophäen gibt es Juwelen-Boni.';
+                imageActionStats.innerHTML = `
+                    <div class="image-action-row"><span>Gesamt</span><strong>${progression.trophies}</strong></div>
+                    <div class="image-action-row"><span>Naechster Planet</span><strong>${nextPlanetProgress.remaining}</strong></div>
+                    <div class="image-action-row"><span>Naechste Mini-Freischaltung</span><strong>${nextGemsProgress.remaining}</strong></div>
+                    <div class="image-action-row"><span>Freigeschaltete Planeten</span><strong>${unlockedCount}</strong></div>
+                `;
+                return;
+            }
+
+            if (activeImagePanel === 'gems') {
+                imageActionTitle.textContent = 'Juwelen';
+                imageActionCopy.textContent = 'Bei jeder Mini-Freischaltung (250 Trophäen) gibt es +20 Kristalle.';
+                imageActionStats.innerHTML = `
+                    <div class="image-action-row"><span>Kristalle</span><strong>${progression.crystals}</strong></div>
+                    <div class="image-action-row"><span>Naechster Bonus</span><strong>${nextGemsProgress.remaining} Trophäen</strong></div>
+                    <div class="image-action-row"><span>Bonus pro Stufe</span><strong>+${GEM_MINI_REWARD}</strong></div>
+                `;
+                return;
+            }
+
+            if (activeImagePanel === 'shop') {
+                imageActionTitle.textContent = 'Shop';
+                imageActionCopy.textContent = `Im Shop kaufst du spaeter Inhalte fuer ${getSelectedPlanet().name}.`;
+                imageActionStats.innerHTML = `
+                    <div class="image-action-row"><span>Trophäen</span><strong>${progression.trophies}</strong></div>
+                    <div class="image-action-row"><span>Kristalle</span><strong>${progression.crystals}</strong></div>
+                    <div class="image-action-row"><span>Schrott</span><strong>${progression.scrap}</strong></div>
+                `;
+                return;
+            }
+
+            imageActionTitle.textContent = 'Info';
+            imageActionCopy.textContent = 'Dieser Bereich wird vorbereitet.';
+            imageActionStats.innerHTML = '';
+        }
+
+        function getSelectedPlanet() {
+            return PLANET_LIBRARY[selectedPlanetIndex];
+        }
+
+        function getFilteredLanguages(queryText) {
+            const query = queryText.trim().toLowerCase();
+            if (!query) {
+                return LANGUAGE_OPTIONS;
+            }
+            return LANGUAGE_OPTIONS.filter((entry) => entry.label.toLowerCase().includes(query) || entry.code.includes(query));
+        }
+
+        function renderLanguageList(queryText = '') {
+            if (!languageList) {
+                return;
+            }
+            const filtered = getFilteredLanguages(queryText);
+            languageList.innerHTML = filtered.map((entry) => {
+                const activeClass = entry.code === appSettings.language ? ' active' : '';
+                return `<button class="settings-language-item${activeClass}" type="button" data-lang="${entry.code}">${entry.label}</button>`;
+            }).join('');
+
+            languageList.querySelectorAll('.settings-language-item').forEach((button) => {
+                button.addEventListener('click', () => {
+                    appSettings.language = button.dataset.lang;
+                    document.documentElement.lang = appSettings.language;
+                    renderLanguageList(languageSearchInput ? languageSearchInput.value : '');
+                });
+            });
+        }
+
+        function updateMusicUi() {
+            if (musicToggleButton) {
+                musicToggleButton.textContent = appSettings.musicEnabled ? 'An' : 'Aus';
+                musicToggleButton.classList.toggle('active', appSettings.musicEnabled);
+            }
+            syncAudioState();
+        }
+
+        function openSettingsScreen() {
+            if (!settingsScreen) {
+                return;
+            }
+            settingsOpen = true;
+            settingsScreen.classList.add('visible');
+            settingsScreen.setAttribute('aria-hidden', 'false');
+            renderLanguageList(languageSearchInput ? languageSearchInput.value : '');
+            updateMusicUi();
+            if (languageSearchInput) {
+                languageSearchInput.focus();
+            }
+        }
+
+        function closeSettingsScreen() {
+            if (!settingsScreen) {
+                return;
+            }
+            settingsOpen = false;
+            settingsScreen.classList.remove('visible');
+            settingsScreen.setAttribute('aria-hidden', 'true');
+        }
+
+        function getSelectedSkin() {
+            const planet = getSelectedPlanet();
+            return planet.skins[Math.min(selectedSkinIndex, planet.skins.length - 1)];
+        }
+
+        function getSelectedHomePlanet() {
+            return HOME_PLANET_OPTIONS[Math.min(selectedHomePlanetIndex, HOME_PLANET_OPTIONS.length - 1)];
+        }
+
+        function applyHomePlanetSelection() {
+            const homePlanet = getSelectedHomePlanet();
+            selectedPlanetIndex = homePlanet.basePlanetIndex;
+            selectedSkinIndex = homePlanet.skinIndex;
+        }
+
+        function estimateImageLuma(imagePath) {
+            return new Promise((resolve) => {
+                const sampleImage = new Image();
+                sampleImage.crossOrigin = 'anonymous';
+                sampleImage.onload = () => {
+                    const sampleCanvas = document.createElement('canvas');
+                    const sampleCtx = sampleCanvas.getContext('2d', { willReadFrequently: true });
+                    if (!sampleCtx) {
+                        resolve(CENTER_PLANET_TARGET_LUMA);
+                        return;
+                    }
+                    try {
+                        sampleCanvas.width = 32;
+                        sampleCanvas.height = 32;
+                        sampleCtx.drawImage(sampleImage, 0, 0, 32, 32);
+                        const data = sampleCtx.getImageData(0, 0, 32, 32).data;
+                        let lumaSum = 0;
+                        let pixelCount = 0;
+
+                        for (let i = 0; i < data.length; i += 4) {
+                            const alpha = data[i + 3] / 255;
+                            if (alpha < 0.1) {
+                                continue;
+                            }
+                            const r = data[i];
+                            const g = data[i + 1];
+                            const b = data[i + 2];
+                            lumaSum += (0.299 * r + 0.587 * g + 0.114 * b);
+                            pixelCount += 1;
+                        }
+
+                        if (pixelCount === 0) {
+                            resolve(CENTER_PLANET_TARGET_LUMA);
+                            return;
+                        }
+
+                        resolve(lumaSum / pixelCount);
+                    } catch (_error) {
+                        resolve(CENTER_PLANET_TARGET_LUMA);
+                    }
+                };
+                sampleImage.onerror = () => resolve(CENTER_PLANET_TARGET_LUMA);
+                sampleImage.src = imagePath;
+            });
+        }
+
+        async function normalizeCenterPlanetBrightness(imagePath) {
+            if (!imageCenterPlanet) {
+                return;
+            }
+
+            if (centerPlanetBrightnessCache[imagePath] === undefined) {
+                const averageLuma = await estimateImageLuma(imagePath);
+                const brightness = Math.max(0.82, Math.min(1.28, CENTER_PLANET_TARGET_LUMA / Math.max(1, averageLuma)));
+                centerPlanetBrightnessCache[imagePath] = brightness;
+            }
+
+            imageCenterPlanet.style.setProperty('--center-planet-brightness', centerPlanetBrightnessCache[imagePath].toFixed(3));
+        }
+
+        function updateCenterPlanetPhoto() {
+            const homePlanet = getSelectedHomePlanet();
+            if (planetPhoto) {
+                planetPhoto.src = homePlanet.image;
+                planetPhoto.alt = `${homePlanet.name} Planet`;
+                planetFocus.classList.add('photo-mode');
+            }
+            if (!imageCenterPlanet) {
+                return;
+            }
+            imageCenterPlanet.src = homePlanet.image;
+            imageCenterPlanet.alt = `${homePlanet.name} Planet`;
+            normalizeCenterPlanetBrightness(homePlanet.image);
+        }
+
+        function getImageStripSlotWidth() {
+            return (IMAGE_STRIP_LAYOUT.width - IMAGE_STRIP_LAYOUT.gap * (HOME_PLANET_OPTIONS.length - 1)) / HOME_PLANET_OPTIONS.length;
+        }
+
+        function getImageStripSlotLeft(index) {
+            const slotWidth = getImageStripSlotWidth();
+            const baseLeft = IMAGE_STRIP_LAYOUT.left + index * (slotWidth + IMAGE_STRIP_LAYOUT.gap);
+            return baseLeft - index * IMAGE_STRIP_LAYOUT.driftCorrectionPerSlot;
+        }
+
+        function updateImageStripHighlight() {
+            if (!imageStripHighlight) {
+                return;
+            }
+            const slotLeft = getImageStripSlotLeft(selectedHomePlanetIndex);
+            const slotWidth = getImageStripSlotWidth();
+
+            const left = slotLeft + IMAGE_STRIP_HIGHLIGHT_FIT.offsetX;
+            const top = IMAGE_STRIP_LAYOUT.top + IMAGE_STRIP_HIGHLIGHT_FIT.offsetY;
+            const width = slotWidth - IMAGE_STRIP_HIGHLIGHT_FIT.shrinkWidth;
+            const height = IMAGE_STRIP_LAYOUT.height - IMAGE_STRIP_HIGHLIGHT_FIT.shrinkHeight;
+
+            imageStripHighlight.style.left = `${left}%`;
+            imageStripHighlight.style.top = `${top}%`;
+            imageStripHighlight.style.width = `${width}%`;
+            imageStripHighlight.style.height = `${height}%`;
+        }
+
+        function selectHomePlanetByIndex(index) {
+            selectedHomePlanetIndex = index;
+            applyHomePlanetSelection();
+            setHomeSection('planets');
+            updateHomeUi(`${getSelectedHomePlanet().name} ist jetzt im Fokus.`);
+            playSoundEffect('switch');
+            showPlanetCallout();
+        }
+
+        function renderImageStripButtons() {
+            if (!imageStripButtons) {
+                return;
+            }
+            imageStripButtons.innerHTML = '';
+            const slotWidth = getImageStripSlotWidth();
+
+            HOME_PLANET_OPTIONS.forEach((planetOption, index) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'image-strip-button';
+                button.setAttribute('aria-label', `${planetOption.name} Planet auswählen`);
+                button.style.left = `${getImageStripSlotLeft(index)}%`;
+                button.style.top = `${IMAGE_STRIP_LAYOUT.top}%`;
+                button.style.width = `${slotWidth}%`;
+                button.style.height = `${IMAGE_STRIP_LAYOUT.height}%`;
+                button.addEventListener('click', () => {
+                    selectHomePlanetByIndex(index);
+                });
+                imageStripButtons.appendChild(button);
+            });
+        }
+
+        function setFillWidth(element, value) {
+            element.style.width = `${value}%`;
+        }
+
+        function setHomeSection(section) {
+            activeHomeSection = section;
+            sectionPlanets.classList.toggle('active', section === 'planets');
+            sectionShop.classList.toggle('active', section === 'shop');
+            sectionTrophies.classList.toggle('active', section === 'trophies');
+            navPlanetsButton.classList.toggle('active', section === 'planets');
+            navShopButton.classList.toggle('active', section === 'shop');
+            navTrophiesButton?.classList.toggle('active', section === 'trophies');
+        }
+
+        function applyPlanetStyles() {
+            const skin = getSelectedSkin();
+            planetFocus.style.setProperty('--planet-surface', skin.surface);
+            planetFocus.style.setProperty('--planet-overlay', skin.overlay);
+            planetFocus.style.setProperty('--planet-effects', skin.effects);
+            planetFocus.style.setProperty('--planet-particles', skin.particles);
+            planetFocus.style.setProperty('--planet-outer', skin.outer);
+            planetFocus.style.setProperty('--planet-glow', skin.glow);
+            planetFocus.style.setProperty('--ring-rotation', skin.ringRotation);
+        }
+
+        function renderPlanetList() {
+            planetList.innerHTML = '';
+            HOME_PLANET_OPTIONS.forEach((planetOption, index) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = `planet-icon${index === selectedHomePlanetIndex ? ' active' : ''}`;
+                button.innerHTML = `
+                    <span class="planet-icon-dot"><img src="${planetOption.image}" alt="${planetOption.name}"></span>
+                    <strong>${planetOption.name}</strong>
+                    <span>Planet</span>
+                `;
+                button.addEventListener('click', () => {
+                    selectHomePlanetByIndex(index);
+                });
+                planetList.appendChild(button);
+            });
+        }
+
+        function renderSkinList() {
+            const planet = getSelectedPlanet();
+            skinList.innerHTML = '';
+            planet.skins.forEach((skin, index) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = `skin-button${index === selectedSkinIndex ? ' active' : ''}`;
+                button.textContent = skin.name;
+                button.addEventListener('click', () => {
+                    selectedSkinIndex = index;
+                    setHomeSection('planets');
+                    updateHomeUi(`Skin aktiv: ${planet.name} ${skin.name}.`);
+                });
+                skinList.appendChild(button);
+            });
+        }
+
+        function updateHomeUi(message) {
+            const planet = getSelectedPlanet();
+            const skin = getSelectedSkin();
+            const homePlanet = getSelectedHomePlanet();
+
+            calloutLevel.textContent = String(planet.level);
+            calloutGadget.textContent = planet.gadget;
+            setFillWidth(calloutXp, planet.xp);
+            shopCopy.textContent = `Moderne Skins und Effekte für ${planet.name} kannst du später hier freischalten.`;
+            statusRibbon.textContent = message || `Aktiver Planet: ${homePlanet.name}`;
+            shopTrophiesLabel.textContent = String(progression.trophies);
+            shopCrystalsLabel.textContent = String(progression.crystals);
+            trophyTotalLabel.textContent = `${progression.trophies} Trophäen`;
+            renderTrophyPath();
+            updateImageActionPanel();
+            applyPlanetStyles();
+            updateCenterPlanetPhoto();
+            updateImageStripHighlight();
+            renderPlanetList();
+            renderSkinList();
+        }
+
+        function showPlanetCallout() {
+            if (planetCalloutTimer) {
+                clearTimeout(planetCalloutTimer);
+            }
+            planetCallout.classList.add('visible');
+            planetFocus.classList.remove('pulse');
+            void planetFocus.offsetWidth;
+            planetFocus.classList.add('pulse');
+            planetCalloutTimer = setTimeout(() => {
+                planetCallout.classList.remove('visible');
+            }, 2400);
+        }
+
+        function showHomeScreen(message) {
+            homeScreen.classList.remove('hidden');
+            uiPanel.style.opacity = '0';
+            setHomeSection(activeHomeSection);
+            updateHomeUi(message);
+        }
+
+        function hideHomeScreen() {
+            homeScreen.classList.add('hidden');
+            uiPanel.style.opacity = '1';
+            planetCallout.classList.remove('visible');
+        }
+
+        function scheduleReturnToHome(message) {
+            if (homeReturnTimer) {
+                clearTimeout(homeReturnTimer);
+            }
+            homeReturnTimer = setTimeout(() => {
+                resetGame();
+                showHomeScreen(message);
+            }, 1500);
+        }
+
+        function cycleToNextPlanet() {
+            selectedHomePlanetIndex = (selectedHomePlanetIndex + 1) % HOME_PLANET_OPTIONS.length;
+            applyHomePlanetSelection();
+            const nextPlanet = getSelectedHomePlanet();
+            setHomeSection('planets');
+            updateHomeUi(`${nextPlanet.name} ist jetzt im Fokus.`);
+            showPlanetCallout();
+        }
+
+        function cycleToPreviousPlanet() {
+            selectedHomePlanetIndex = (selectedHomePlanetIndex - 1 + HOME_PLANET_OPTIONS.length) % HOME_PLANET_OPTIONS.length;
+            applyHomePlanetSelection();
+            const prevPlanet = getSelectedHomePlanet();
+            setHomeSection('planets');
+            updateHomeUi(`${prevPlanet.name} ist jetzt im Fokus.`);
+            showPlanetCallout();
+        }
 
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
@@ -179,9 +2781,6 @@
 
             world.width = Math.floor(canvas.width * 3);
             world.height = Math.floor(canvas.height * 2);
-
-            endCloud.x = world.width - 180;
-            endCloud.y = world.height / 2;
 
             applyPoisonCloudGrowthProgress();
 
@@ -287,6 +2886,10 @@
         }
 
         function resetGame() {
+            if (homeReturnTimer) {
+                clearTimeout(homeReturnTimer);
+                homeReturnTimer = null;
+            }
             player.x = world.width * 0.1;
             player.y = world.height / 2;
             player.mass = 100;
@@ -326,13 +2929,14 @@
             updateMassDisplay();
             updatePositionDisplay();
             setHazardStatus('Sicher', '#9effc3');
-            startButton.style.display = 'block';
         }
 
         function startGame() {
             gameStarted = true;
-            startButton.style.display = 'none';
+            hideHomeScreen();
+            statusRibbon.textContent = `Im Match: ${getSelectedPlanet().name}`;
             lastFrameTime = performance.now();
+            playSoundEffect('start');
         }
 
         function applyPoisonCloudGrowthProgress() {
@@ -660,11 +3264,21 @@
                 return;
             }
 
+            if (reason === 'Ziel erreicht') {
+                awardTrophies(WIN_TROPHY_REWARD, 'Siegbonus');
+            } else if (reason === 'Alle Bots zerstört') {
+                awardTrophies(CLEAR_BONUS_TROPHY_REWARD, 'Rundenbonus');
+            }
+
             matchEnded = true;
+            if (reason === 'Ziel erreicht' || reason === 'Alle Bots zerstört') {
+                playSoundEffect('victory');
+            }
             const leader = getMassLeader();
             matchResultTitle = 'Runde beendet';
             matchResultText = `${reason} | Gewinner: ${leader.leaderName} (${leader.leaderMass} Masse)`;
             setHazardStatus(`Gewinner: ${leader.leaderName}`, '#b9ecff');
+            scheduleReturnToHome(`${matchResultTitle}: ${matchResultText}`);
         }
 
         function createExplosion(x, y, strength, color, type = 'generic', options = {}) {
@@ -692,10 +3306,12 @@
 
         function createCombatDeathEffect(x, y, strength) {
             createExplosion(x, y, strength, 'rgba(255, 105, 85, 0.92)', 'combat');
+            playSoundEffect('death');
         }
 
         function createPoisonDeathEffect(x, y, strength) {
             createExplosion(x, y, strength, 'rgba(130, 255, 120, 0.9)', 'poison');
+            playSoundEffect('poison-death');
         }
 
         function createPoisonDamageEffect(x, y, strength) {
@@ -902,8 +3518,9 @@
                     return true;
                 }
 
-                player.mass += asteroid.mass * MASS_GAIN_FACTOR;
+                player.mass += asteroid.mass;
                 createExplosion(asteroid.x, asteroid.y, asteroid.radius, 'rgba(255, 190, 120, 0.85)');
+                playSoundEffect('collect');
                 updatePlayerRadius();
                 updateMassDisplay();
                 return false;
@@ -960,6 +3577,7 @@
                 if (player.mass >= bot.mass) {
                     player.mass += bot.mass * PLANET_ABSORB_GAIN;
                     createCombatDeathEffect(bot.x, bot.y, bot.radius * 1.2);
+                    awardTrophies(BOT_TROPHY_REWARD, 'Bot besiegt');
                     updatePlayerRadius();
                     updateMassDisplay();
                     return false;
@@ -968,6 +3586,7 @@
                 bot.mass += player.mass * PLANET_ABSORB_GAIN;
                 updateEntityRadius(bot);
                 createCombatDeathEffect(player.x, player.y, player.radius * 1.2);
+                playSoundEffect('defeat');
                 player.mass = 0;
                 updatePlayerRadius();
                 updateMassDisplay();
@@ -1113,7 +3732,7 @@
             poisonMassAtEntry = 0;
 
             if (isNearPoison) {
-                setHazardStatus('Achtung: Giftwolke in der Naehe', '#ffd966');
+                setHazardStatus('Achtung: Giftwolke in der Nähe', '#ffd966');
             } else {
                 setHazardStatus('Sicher', '#9effc3');
             }
@@ -1124,11 +3743,30 @@
         function drawPlayer() {
             const sx = player.x - camera.x;
             const sy = player.y - camera.y;
+            const skin = getSelectedSkin();
 
-            ctx.fillStyle = 'cyan';
+            const gradient = ctx.createRadialGradient(
+                sx - player.radius * 0.35,
+                sy - player.radius * 0.45,
+                Math.max(2, player.radius * 0.15),
+                sx,
+                sy,
+                player.radius
+            );
+            gradient.addColorStop(0, '#ffffff');
+            gradient.addColorStop(0.18, skin.playerRing);
+            gradient.addColorStop(1, skin.playerFill);
+
+            ctx.fillStyle = gradient;
             ctx.beginPath();
             ctx.arc(sx, sy, player.radius, 0, Math.PI * 2);
             ctx.fill();
+
+            ctx.strokeStyle = skin.playerRing;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(sx, sy, player.radius * 0.72, 0, Math.PI * 2);
+            ctx.stroke();
 
             if (player.shieldTimer > 0) {
                 const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 150);
@@ -1144,9 +3782,9 @@
             ctx.textAlign = 'center';
             ctx.fillText(Math.max(0, Math.ceil(player.mass)), sx, sy - player.radius - 10);
 
-            ctx.fillStyle = '#7ef7ff';
+            ctx.fillStyle = skin.playerRing;
             ctx.font = 'bold 13px Arial';
-            ctx.fillText('Ich', sx, sy - player.radius - 24);
+            ctx.fillText(getSelectedPlanet().name, sx, sy - player.radius - 24);
         }
 
         function drawBots() {
@@ -1214,39 +3852,6 @@
             ctx.strokeRect(-camera.x, -camera.y, world.width, world.height);
         }
 
-        function drawEndCloud() {
-            const sx = endCloud.x - camera.x;
-            const sy = endCloud.y - camera.y;
-
-            const gradient = ctx.createRadialGradient(sx, sy, 20, sx, sy, endCloud.radius);
-            gradient.addColorStop(0, 'rgba(120, 210, 255, 0.85)');
-            gradient.addColorStop(0.5, 'rgba(70, 160, 255, 0.55)');
-            gradient.addColorStop(1, 'rgba(40, 120, 210, 0.12)');
-
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.arc(sx, sy, endCloud.radius, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.fillStyle = 'rgba(200, 240, 255, 0.45)';
-            ctx.beginPath();
-            ctx.arc(sx - 36, sy - 22, 26, 0, Math.PI * 2);
-            ctx.arc(sx + 34, sy - 12, 22, 0, Math.PI * 2);
-            ctx.arc(sx + 8, sy + 26, 30, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.strokeStyle = 'rgba(180, 235, 255, 0.75)';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(sx, sy, endCloud.radius * 0.72, 0, Math.PI * 2);
-            ctx.stroke();
-
-            ctx.fillStyle = '#dff6ff';
-            ctx.font = '18px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('Blaue Wolke', sx, sy + 6);
-        }
-
         function drawPoisonClouds() {
             const sz = getSafeRect();
             const wx = -camera.x;
@@ -1269,13 +3874,6 @@
             ctx.strokeRect(rx, ry, rw, rh);
         }
 
-        function checkWinCondition() {
-            const distance = Math.hypot(player.x - endCloud.x, player.y - endCloud.y);
-            if (distance <= player.radius + endCloud.radius * 0.55) {
-                gameWon = true;
-            }
-        }
-
         function checkMatchEnding() {
             if (gameWon) {
                 endMatch('Ziel erreicht');
@@ -1288,11 +3886,12 @@
                 const leader = getMassLeader();
                 matchResultText = `Gewinner: ${leader.leaderName} (${leader.leaderMass} Masse)`;
                 setHazardStatus('Du bist gestorben', '#ff5d5d');
+                scheduleReturnToHome(`${matchResultTitle}: ${matchResultText}`);
                 return;
             }
 
             if (bots.length === 0) {
-                endMatch('Alle Bots zerstoert');
+                endMatch('Alle Bots zerstört');
             }
         }
 
@@ -1314,7 +3913,7 @@
         }
 
         function drawStartMessage() {
-            if (gameStarted || matchEnded) {
+            if (gameStarted || matchEnded || !homeScreen.classList.contains('hidden')) {
                 return;
             }
 
@@ -1324,7 +3923,7 @@
             ctx.fillStyle = '#d2f7ff';
             ctx.textAlign = 'center';
             ctx.font = 'bold 40px Arial';
-            ctx.fillText('Druecke Start', canvas.width / 2, canvas.height / 2 - 8);
+            ctx.fillText('Drücke Start', canvas.width / 2, canvas.height / 2 - 8);
 
             ctx.font = '20px Arial';
             ctx.fillText('Erst dann beginnt die Runde.', canvas.width / 2, canvas.height / 2 + 28);
@@ -1351,7 +3950,6 @@
                 handlePoisonCloudDamage(deltaSeconds);
                 resolvePlanetBattles();
                 handleBotThreat();
-                checkWinCondition();
                 checkMatchEnding();
             }
             updateExplosions(deltaSeconds);
@@ -1359,7 +3957,6 @@
             updateCamera();
             drawBackground();
             drawWorldBorder();
-            drawEndCloud();
             drawPoisonClouds();
             drawAsteroids();
             drawBots();
@@ -1373,7 +3970,27 @@
         }
 
         updatePlayerRadius();
+        syncProgressionFromCurrentTrophies();
+        renderImageStripButtons();
+        applyHomePlanetSelection();
         resetGame();
+        updateHomeUi(`Aktiver Planet: ${getSelectedHomePlanet().name}`);
+        showHomeScreen(`Aktiver Planet: ${getSelectedHomePlanet().name}`);
+
+        function syncHomeImageRatio() {
+            if (!homeImage || !homeImageFrame || !homeImage.naturalWidth || !homeImage.naturalHeight) {
+                return;
+            }
+            homeImageFrame.style.setProperty('--home-ratio', `${homeImage.naturalWidth} / ${homeImage.naturalHeight}`);
+        }
+
+        if (homeImage) {
+            if (homeImage.complete) {
+                syncHomeImageRatio();
+            }
+            homeImage.addEventListener('load', syncHomeImageRatio);
+        }
+
         setInterval(() => {
             if (!gameStarted || matchEnded) {
                 return;
@@ -1384,14 +4001,203 @@
             createAsteroid();
         }, 1000);
 
-        startButton.addEventListener('click', () => {
-            startGame();
-        });
-
-        restartButton.addEventListener('click', () => {
+        startGameButton.addEventListener('click', () => {
             resetGame();
             startGame();
         });
+
+        navPlanetsButton.addEventListener('click', () => {
+            setHomeSection('planets');
+            sideMessage.textContent = 'Wechsle hier zwischen freigeschalteten Planeten und ihren Skins.';
+            updateHomeUi();
+        });
+
+        navShopButton.addEventListener('click', () => {
+            setHomeSection('shop');
+            sideMessage.textContent = `Im Shop findest du später neue Inhalte für ${getSelectedPlanet().name}.`;
+            updateHomeUi();
+        });
+
+        if (navTrophiesButton) {
+            navTrophiesButton.addEventListener('click', () => {
+                setHomeSection('trophies');
+                sideMessage.textContent = 'Alle 1000 Trophäen wird ein neuer Planet freigeschaltet. Alle 250 Trophäen gibt es Juwelen-Boni.';
+                updateHomeUi();
+            });
+        }
+
+        shopFocusPlanetButton.addEventListener('click', () => {
+            setHomeSection('planets');
+            sideMessage.textContent = `${getSelectedPlanet().name} steht wieder im Fokus.`;
+            showPlanetCallout();
+            updateHomeUi();
+        });
+
+        planetFocus.addEventListener('click', () => {
+            showPlanetCallout();
+        });
+
+        imageStartButton.addEventListener('click', () => {
+            startGameButton.click();
+        });
+
+        imagePlanetsButton.addEventListener('click', () => {
+            navPlanetsButton.click();
+        });
+
+        imageShopButton.addEventListener('click', () => {
+            navShopButton.click();
+            showImageActionPanel('shop');
+        });
+
+        imageGemsButton.addEventListener('click', () => {
+            setHomeSection('trophies');
+            updateHomeUi();
+            sideMessage.textContent = 'Juwelen-Mini-Freischaltungen: Alle 250 Trophäen gibt es zusätzliche Kristalle.';
+            showImageActionPanel('gems');
+        });
+
+        imageTrophiesButton.addEventListener('click', () => {
+            setHomeSection('trophies');
+            updateHomeUi();
+            sideMessage.textContent = 'Trophäenbereich geöffnet: Jeder 1000er-Meilenstein schaltet einen neuen Planeten frei.';
+            showImageActionPanel('trophies');
+        });
+
+        imageTopTrophiesButton.addEventListener('click', () => {
+            imageTrophiesButton.click();
+        });
+
+        homeImageFrame.addEventListener('click', (event) => {
+            const rect = homeImageFrame.getBoundingClientRect();
+            const relX = (event.clientX - rect.left) / rect.width;
+            const relY = (event.clientY - rect.top) / rect.height;
+
+            const isTopRightTrophyArea = relX >= 0.72 && relX <= 0.995 && relY >= 0.01 && relY <= 0.24;
+            if (isTopRightTrophyArea) {
+                imageTrophiesButton.click();
+            }
+        });
+
+        imageMissionsButton.addEventListener('click', () => {
+            navShopButton.click();
+            sideMessage.textContent = 'Missionen folgen im Shop-Bereich.';
+            showImageActionPanel('missions');
+        });
+
+        imageEventsButton.addEventListener('click', () => {
+            navShopButton.click();
+            sideMessage.textContent = 'Events sind als Bereich vorgesehen.';
+            showImageActionPanel('events');
+        });
+
+        imageShopFocusButton.addEventListener('click', () => {
+            shopFocusPlanetButton.click();
+        });
+
+        imageFocusButton.addEventListener('click', () => {
+            planetFocus.click();
+        });
+
+        imagePrevButton.addEventListener('click', () => {
+            cycleToPreviousPlanet();
+        });
+
+        imageNextButton.addEventListener('click', () => {
+            cycleToNextPlanet();
+        });
+
+        imageSettingsButton.addEventListener('click', () => {
+            openSettingsScreen();
+        });
+
+        imagePlanetStripButton.addEventListener('click', () => {
+            navPlanetsButton.click();
+            hideImageActionPanel();
+        });
+
+        imageActionClose.addEventListener('click', () => {
+            hideImageActionPanel();
+        });
+
+        settingsBackButton.addEventListener('click', () => {
+            closeSettingsScreen();
+        });
+
+        document.addEventListener('click', (event) => {
+            const target = event.target;
+            if (!(target instanceof Element)) {
+                return;
+            }
+            const button = target.closest('button');
+            if (button) {
+                triggerButtonFlash(button);
+            }
+        });
+
+        languageSearchInput.addEventListener('input', () => {
+            renderLanguageList(languageSearchInput.value);
+        });
+
+        languageSearchInput.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter') {
+                return;
+            }
+            const first = languageList.querySelector('.settings-language-item');
+            if (first) {
+                first.click();
+            }
+        });
+
+        musicToggleButton.addEventListener('click', () => {
+            appSettings.musicEnabled = !appSettings.musicEnabled;
+            updateMusicUi();
+        });
+
+        [
+            startGameButton,
+            navPlanetsButton,
+            navShopButton,
+            shopFocusPlanetButton,
+            planetFocus,
+            imageStartButton,
+            imagePlanetsButton,
+            imageShopButton,
+            imageGemsButton,
+            imageTrophiesButton,
+            imageMissionsButton,
+            imageEventsButton,
+            imageShopFocusButton,
+            imageFocusButton,
+            imageTopTrophiesButton,
+            settingsBackButton,
+            musicToggleButton
+        ].forEach((button) => attachButtonSound(button));
+        [imagePrevButton, imageNextButton].forEach((button) => attachButtonSound(button, 'switch'));
+        attachButtonSound(imageSettingsButton, 'switch');
+
+        window.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && settingsOpen) {
+                closeSettingsScreen();
+            }
+        });
+
+        planetStage.addEventListener('pointermove', (event) => {
+            const rect = planetStage.getBoundingClientRect();
+            const offsetX = (event.clientX - rect.left) / rect.width - 0.5;
+            const offsetY = (event.clientY - rect.top) / rect.height - 0.5;
+            homePointerTilt.x = offsetX * 18;
+            homePointerTilt.y = offsetY * -18;
+            planetFocus.style.transform = `rotateX(${homePointerTilt.y}deg) rotateY(${homePointerTilt.x}deg) scale(1.02)`;
+        });
+
+        planetStage.addEventListener('pointerleave', () => {
+            homePointerTilt.x = 0;
+            homePointerTilt.y = 0;
+            planetFocus.style.transform = 'rotateX(0deg) rotateY(0deg) scale(1)';
+        });
+
+        updateMusicUi();
         
         gameLoop();
     </script>
