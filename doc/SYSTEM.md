@@ -31,7 +31,7 @@ Pfeiltasten (`↑ ↓ ← →`). Bei gleichzeitiger Rechtsbewegung gibt es einen
 
 Die effektive Geschwindigkeit nimmt mit steigender Masse ab:
 
-$$v_{eff} = \max\!\left(0.8,\ \frac{v_{base}}{\left(\frac{m}{100}\right)^{0.7}}\right) \times 1.25$$
+$$v_{eff} = \max\!\left(0.8,\ \frac{v_{base}}{\left(\frac{m}{100}\right)^{0.55}}\right) \times 1.25$$
 
 ---
 

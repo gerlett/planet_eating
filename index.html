@@ -310,8 +310,11 @@
             color: #e8f9ff;
             padding: 10px 12px;
             text-align: left;
-            cursor: default;
+            cursor: pointer;
             box-shadow: 0 10px 22px rgba(0, 0, 0, 0.24);
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
         }
         .planet-info-button strong {
             display: block;
@@ -321,14 +324,22 @@
         .planet-info-button span {
             display: block;
             font-size: 11px;
-            margin-top: 4px;
             color: #b9d8ea;
         }
         .planet-info-button p {
-            margin: 6px 0 0;
+            margin: 0;
             font-size: 11px;
             line-height: 1.35;
             color: #d9eefb;
+        }
+        .planet-info-button::after {
+            content: 'ℹ Mehr Info';
+            align-self: flex-end;
+            margin-top: 2px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            color: #ffe59a;
         }
         .planet-orbit {
             position: absolute;
@@ -1363,7 +1374,7 @@
             border: 1px solid rgba(170, 223, 255, 0.34);
             background: rgba(4, 16, 30, 0.9);
             box-shadow: 0 18px 36px rgba(0, 0, 0, 0.34);
-            display: none !important;
+            display: none;
         }
         .image-action-panel.visible {
             display: block;
@@ -2560,16 +2571,11 @@
                 <img id="home-image-buttons" class="home-image-buttons" src="images/Buttons für startseite.png" alt="Startseiten-Buttons" draggable="false">
                 <div class="home-image-light"></div>
                 <img id="image-center-planet" class="image-center-planet" src="images/lava_clean.png" alt="Aktiver Planet" draggable="false">
-                <div id="image-ability-tab" class="image-ability-tab">
-                    <div class="image-ability-row">
-                        <div class="image-ability-title">Attacke</div>
-                        <div id="planet-attack-text" class="image-ability-text"><strong>Magma Pulse:</strong> Stößt eine ringförmige Lavawelle aus und drückt Gegner nach außen.</div>
-                    </div>
-                    <div class="image-ability-row">
-                        <div class="image-ability-title">Gadget</div>
-                        <div id="planet-gadget-text" class="image-ability-text"><strong>Lava Core:</strong> Erzeugt einen Gravitationskern, der Gegner langsam anzieht.</div>
-                    </div>
-                </div>
+                <button id="planet-info-button" class="planet-info-button" type="button">
+                    <strong id="planet-info-title">Lava</strong>
+                    <span id="planet-info-meta">Herkunft · Entstehung · Werte</span>
+                    <p id="planet-info-copy">Direkt, laut und brachial. ℹ Mehr Info</p>
+                </button>
                 <div id="image-click-highlight" class="image-click-highlight"></div>
                 <div id="image-planet-bar" class="image-planet-bar"></div>
                 <div id="image-strip-buttons" class="image-strip-buttons"></div>
@@ -2821,8 +2827,10 @@
         const planetFocus = document.getElementById('planet-focus');
         const planetPhoto = document.getElementById('planet-photo');
         const planetCallout = document.getElementById('planet-callout');
-        const planetAttackText = document.getElementById('planet-attack-text');
-        const planetGadgetText = document.getElementById('planet-gadget-text');
+        const planetInfoButton = document.getElementById('planet-info-button');
+        const planetInfoTitle = document.getElementById('planet-info-title');
+        const planetInfoMeta = document.getElementById('planet-info-meta');
+        const planetInfoCopy = document.getElementById('planet-info-copy');
         const calloutLevel = document.getElementById('callout-level');
         const calloutGadget = document.getElementById('callout-gadget');
         const calloutXp = document.getElementById('callout-xp');
@@ -3209,18 +3217,37 @@
         }
 
         function getPlayerVisibilityForBot(bot) {
-            if (!playerInVoidNebula) {
-                return 1;
+            let visibility = 1;
+            if (playerInVoidNebula) {
+                const dist = Math.hypot(bot.x - player.x, bot.y - player.y);
+                if (dist <= VOID_REVEAL_FULL_DISTANCE) {
+                    visibility = 1;
+                } else if (dist >= VOID_REVEAL_NEAR_DISTANCE) {
+                    visibility = 0;
+                } else {
+                    const t = 1 - ((dist - VOID_REVEAL_FULL_DISTANCE) / (VOID_REVEAL_NEAR_DISTANCE - VOID_REVEAL_FULL_DISTANCE));
+                    visibility = clampNumber(t, 0, 1);
+                }
             }
-            const dist = Math.hypot(bot.x - player.x, bot.y - player.y);
-            if (dist <= VOID_REVEAL_FULL_DISTANCE) {
-                return 1;
+
+            if (ultimateActive && ultimateActive.type === 'darkVoid') {
+                const ux = ultimateActive.x ?? player.x;
+                const uy = ultimateActive.y ?? player.y;
+                const ur = ultimateActive.radius ?? 0;
+                if (Math.hypot(bot.x - ux, bot.y - uy) < ur) {
+                    visibility *= 0.18;
+                }
             }
-            if (dist >= VOID_REVEAL_NEAR_DISTANCE) {
-                return 0;
+
+            if (isEntityInsideShadowVeil(player)) {
+                visibility *= 0.45;
             }
-            const t = 1 - ((dist - VOID_REVEAL_FULL_DISTANCE) / (VOID_REVEAL_NEAR_DISTANCE - VOID_REVEAL_FULL_DISTANCE));
-            return clampNumber(t, 0, 1);
+
+            if (bot.shadowBlindTimer > 0) {
+                visibility *= 0.28;
+            }
+
+            return clampNumber(visibility, 0, 1);
         }
 
         function updateVoidNebulaVisibility() {
@@ -3238,6 +3265,16 @@
 
         function getVoidAttackMultiplier() {
             return (playerInVoidNebula && playerVoidVisibility <= 0.68) ? VOID_ATTACK_BONUS_MULT : 1;
+        }
+
+        function isEntityInsideShadowVeil(entity) {
+            for (let i = 0; i < shadowVeils.length; i += 1) {
+                const veil = shadowVeils[i];
+                if (Math.hypot(entity.x - veil.x, entity.y - veil.y) <= veil.radius + entity.radius * 0.35) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         function drawVoidNebulas() {
@@ -4023,10 +4060,8 @@
                         bot.slowTimer = Math.max(bot.slowTimer || 0, 0.25);
                     }
                 });
-                if (blackHoleMagnetCharge <= 0) {
-                    hasBlackHoleMagnet = false;
-                    blackHoleMagnetUseTimer = 0;
-                }
+            } else if (hasBlackHoleMagnet && blackHoleMagnetCharge < BLACK_HOLE_MAGNET_MAX_CHARGE) {
+                blackHoleMagnetCharge = Math.min(BLACK_HOLE_MAGNET_MAX_CHARGE, blackHoleMagnetCharge + deltaSeconds * 0.18);
             }
         }
 
@@ -4146,11 +4181,13 @@
             }
 
             if (addonInventory.length > 0) {
+                const selectedAddon = getSelectedAddonEntry();
+                const selectedLabel = selectedAddon ? getAddonDisplayName(selectedAddon.type) : 'Zusatz';
                 ctx.save();
                 ctx.textAlign = 'center';
                 ctx.font = 'bold 11px Arial';
                 ctx.fillStyle = 'rgba(255, 235, 170, 0.95)';
-                ctx.fillText(`Zusatz M: ${addonInventory.length}/2`, canvas.width * 0.5, canvas.height - 72);
+                ctx.fillText(`Zusatz Rad/Rechts: ${selectedLabel} (${selectedAddonIndex + 1}/${addonInventory.length})`, canvas.width * 0.5, canvas.height - 72);
                 ctx.restore();
             }
         }
@@ -4455,8 +4492,8 @@
             },
             Radioaktiv: {
                 attack: {
-                    name: 'Strahlungswelle',
-                    text: 'Sendet grün-violette Energiepulse aus – macht Steuerung instabil und lässt Gravitation flackern.'
+                    name: 'Toxic Core',
+                    text: 'Instabile Reaktorkerne platzen in Giftzonen, verursachen Schaden ueber Zeit und halten Gegner dauerhaft unter Druck.'
                 },
                 gadget: {
                     name: 'Mutationsdrohne',
@@ -4465,8 +4502,8 @@
             },
             Schatten: {
                 attack: {
-                    name: 'Schattenriss',
-                    text: 'Schwarze Nebelspalten reduzieren die Sicht der Gegner und vertauschen kurzzeitig ihre Steuerung.'
+                    name: 'Void Orb',
+                    text: 'Dunkle Orbs blenden Gegner, hinterlassen Nebelzonen und machen Hinterhalte aus der Finsternis moeglich.'
                 },
                 gadget: {
                     name: 'Phasenorb',
@@ -4515,6 +4552,109 @@
             }
         };
 
+        const PLANET_HOME_INFO = {
+            Lava: {
+                role: 'Offensiv',
+                origin: 'Aus einem jungen Vulkanfeld geschmiedet.',
+                formation: 'Der Kern blieb nach der Geburt des Systems dauerhaft heiss und instabil.',
+                short: 'Direkt, laut und brachial.',
+                attackPercent: 88,
+                controlPercent: 66,
+                survivalPercent: 72,
+                detail: 'Lava ist der Klassiker fuer Druck und offenen Kampf.'
+            },
+            Eis: {
+                role: 'Kontrolle',
+                origin: 'Entstanden am Rand einer eingefrorenen Truemmerwolke.',
+                formation: 'Schneekristalle und Druck haben den Planeten zu einer harten Kugel verdichtet.',
+                short: 'Langsam, hart und kontrolliert.',
+                attackPercent: 74,
+                controlPercent: 92,
+                survivalPercent: 84,
+                detail: 'Eis gewinnt ueber Stillstand, Blockaden und Kontrolle.'
+            },
+            Sturm: {
+                role: 'Tempo',
+                origin: 'Geboren aus rotierenden Gasfronten und Ladungsfeldern.',
+                formation: 'Starke Winde und Blitzentladungen hielten die Atmosphaere in Bewegung.',
+                short: 'Schnell, nervoes und explosiv.',
+                attackPercent: 80,
+                controlPercent: 78,
+                survivalPercent: 68,
+                detail: 'Sturm lebt von Tempo, Druckwechsel und chaotischer Bewegung.'
+            },
+            Natur: {
+                role: 'Kontrolle',
+                origin: 'Wuchs aus einem alten Biom-Kern auf einem vergessenen Mond.',
+                formation: 'Lebensranken breiteten sich aus und stabilisierten den Planeten von innen.',
+                short: 'Ruhig, taktisch und heilend.',
+                attackPercent: 58,
+                controlPercent: 96,
+                survivalPercent: 90,
+                detail: 'Natur gewinnt nicht durch Burst, sondern durch Feldkontrolle und Heilung.'
+            },
+            Radioaktiv: {
+                role: 'Druck',
+                origin: 'Entstanden aus einem gescheiterten Reaktor in einer alten Station.',
+                formation: 'Verstrahlte Schichten verdichteten sich zu einem dauerhaft giftigen Kern.',
+                short: 'Langsam, toxisch und bedrohlich.',
+                attackPercent: 68,
+                controlPercent: 90,
+                survivalPercent: 76,
+                detail: 'Radioaktiv zwingt Gegner in Zonen und bestraft jedes Zurückbleiben.'
+            },
+            Schatten: {
+                role: 'Assassine',
+                origin: 'Aus einem Korridor ohne Licht und ohne klare Form entstanden.',
+                formation: 'Dunkle Materie und Sternenreste verschmolzen zu einem versteckten Kern.',
+                short: 'Heimlich, gefaehrlich und schwer zu greifen.',
+                attackPercent: 72,
+                controlPercent: 88,
+                survivalPercent: 64,
+                detail: 'Schatten setzt auf Blickwinkel, Unsicherheit und kurze Hinterhalte.'
+            },
+            Stein: {
+                role: 'Tank',
+                origin: 'Aus kompakten Gesteinsfeldern und uralten Brocken zusammengewachsen.',
+                formation: 'Hoher Druck presste die Schichten zu einer massiven Kugel zusammen.',
+                short: 'Hart, schwer und stabil.',
+                attackPercent: 76,
+                controlPercent: 70,
+                survivalPercent: 94,
+                detail: 'Stein lebt von Masse, Blockade und sehr hoher Standfestigkeit.'
+            },
+            Wüste: {
+                role: 'Mobilität',
+                origin: 'Aus einem trockenen Staubgurt unter grosser Hitze entstanden.',
+                formation: 'Sauberer Luftstrom und hitzige Oberflaechen formten die weite Kugel.',
+                short: 'Weit, offen und beweglich.',
+                attackPercent: 66,
+                controlPercent: 74,
+                survivalPercent: 62,
+                detail: 'Wueste spielt aus Distanz, Raum und schnellen Positionswechseln.'
+            },
+            Zukunft: {
+                role: 'Support',
+                origin: 'Aus einem ueberfluteten Forschungsring hervorgegangen.',
+                formation: 'Flussartige Energien und kuenstliche Wasserschichten formten die Welt.',
+                short: 'Fluessig, ruhig und vielseitig.',
+                attackPercent: 70,
+                controlPercent: 80,
+                survivalPercent: 78,
+                detail: 'Zukunft kombiniert Flut, Gleiten und sichere Anpassung.'
+            },
+            Alien: {
+                role: 'Chaos',
+                origin: 'Aus unbekanntem Raum mit fremder Physik eingeschlagen.',
+                formation: 'Die Oberflaeche folgt keiner klaren Logik und verschiebt Regeln im Inneren.',
+                short: 'Fremd, instabil und unberechenbar.',
+                attackPercent: 84,
+                controlPercent: 82,
+                survivalPercent: 66,
+                detail: 'Alien arbeitet mit Regelbruch, Verwirrung und unklaren Ketteneffekten.'
+            }
+        };
+
         let gameWon = false;
         let gameOver = false;
         let gameStarted = false;
@@ -4546,6 +4686,9 @@
         let startPreviewTimer = 0;
         let startCountdownSoundStep = -1;
         let addonInventory = [];
+        let selectedAddonIndex = 0;
+        let radiationFields = [];
+        let shadowVeils = [];
         let blackHoleMagnetPickups = [];
         let blackHoleMagnetCharge = 0;
         let hasBlackHoleMagnet = false;
@@ -5657,6 +5800,8 @@
 
         function showImageActionPanel(panelType) {
             activeImagePanel = panelType;
+            imageActionPanel.classList.add('visible');
+            updateImageActionPanel();
         }
 
         function updateImageActionPanel() {
@@ -5677,6 +5822,23 @@
                     <div class="image-action-row"><span>Naechste Alien Box</span><strong>${nextAlienBoxProgress.remaining}</strong></div>
                     <div class="image-action-row"><span>Naechste Supernova Box</span><strong>${nextSupernovaProgress.remaining}</strong></div>
                     <div class="image-action-row"><span>Freigeschaltete Planeten</span><strong>${unlockedCount}</strong></div>
+                `;
+                return;
+            }
+
+            if (activeImagePanel === 'planet-info' || activeImagePanel === 'info') {
+                const homePlanet = getSelectedHomePlanet();
+                const displayName = getPlanetDisplayName(homePlanet.name);
+                const info = getHomePlanetInfo(homePlanet.name);
+                imageActionTitle.textContent = displayName;
+                imageActionCopy.textContent = `${info.origin} ${info.formation} ${info.detail}`;
+                imageActionStats.innerHTML = `
+                    <div class="image-action-row"><span>Rolle</span><strong>${info.role}</strong></div>
+                    <div class="image-action-row"><span>Schaden</span><strong>${info.attackPercent}%</strong></div>
+                    <div class="image-action-row"><span>Kontrolle</span><strong>${info.controlPercent}%</strong></div>
+                    <div class="image-action-row"><span>Überleben</span><strong>${info.survivalPercent}%</strong></div>
+                    <div class="image-action-row"><span>Attacke</span><strong>${getPlanetAbilityTabContent(homePlanet.name).attack.name}</strong></div>
+                    <div class="image-action-row"><span>Gadget</span><strong>${getPlanetAbilityTabContent(homePlanet.name).gadget.name}</strong></div>
                 `;
                 return;
             }
@@ -5707,6 +5869,23 @@
             imageActionTitle.textContent = 'Info';
             imageActionCopy.textContent = 'Dieser Bereich wird vorbereitet.';
             imageActionStats.innerHTML = '';
+        }
+
+        function getHomePlanetInfo(homePlanetName) {
+            const homePlanet = PLANET_HOME_INFO[homePlanetName];
+            if (homePlanet) {
+                return { ...homePlanet, role: homePlanet.role || 'Planet' };
+            }
+            return {
+                origin: 'Unbekannte Herkunft.',
+                formation: 'Keine genauen Daten vorhanden.',
+                short: 'Kein Datensatz.',
+                detail: 'Weitere Informationen werden noch gesammelt.',
+                role: 'Planet',
+                attackPercent: 0,
+                controlPercent: 0,
+                survivalPercent: 0
+            };
         }
 
         function getSelectedPlanet() {
@@ -6059,13 +6238,16 @@
         }
 
         function updatePlanetAbilityTab() {
-            if (!planetAttackText || !planetGadgetText) {
+            if (!planetInfoButton || !planetInfoTitle || !planetInfoMeta || !planetInfoCopy) {
                 return;
             }
             const homePlanet = getSelectedHomePlanet();
+            const displayName = getPlanetDisplayName(homePlanet.name);
             const content = getPlanetAbilityTabContent(homePlanet.name);
-            planetAttackText.innerHTML = `<strong>${content.attack.name}:</strong> ${content.attack.text}`;
-            planetGadgetText.innerHTML = `<strong>${content.gadget.name}:</strong> ${content.gadget.text}`;
+            const info = getHomePlanetInfo(homePlanet.name);
+            planetInfoTitle.textContent = displayName;
+            planetInfoMeta.textContent = `${info.origin} · ${info.formation}`;
+            planetInfoCopy.textContent = `${info.short} ℹ Mehr Info: ${content.attack.name} / ${content.gadget.name}`;
         }
 
         function setHomeSection(section) {
@@ -6280,6 +6462,11 @@
             if (['w', 'a', 's', 'd'].includes(k) && gameStarted && !matchEnded) {
                 event.preventDefault();
             }
+            if ((event.key === 'CapsLock' || event.code === 'CapsLock') && gameStarted && !matchEnded) {
+                activateSelectedPower();
+                event.preventDefault();
+                return;
+            }
             if (k === 'e' && gameStarted && !matchEnded) {
                 activateUltimate();
                 event.preventDefault();
@@ -6341,9 +6528,16 @@
                 return;
             }
             if (event.button === 0) { activateAttack(); event.preventDefault(); }
-            if (event.button === 1) { activateMouseWheelPower(); event.preventDefault(); }
-            if (event.button === 2) { event.preventDefault(); }
+            if (event.button === 2) { activateSelectedPower(); event.preventDefault(); }
         });
+
+        canvas.addEventListener('wheel', (event) => {
+            if (!gameStarted || matchEnded || addonInventory.length <= 1) {
+                return;
+            }
+            cycleSelectedAddon(event.deltaY > 0 ? 1 : -1);
+            event.preventDefault();
+        }, { passive: false });
 
         canvas.addEventListener('contextmenu', (event) => {
             if (gameStarted && !matchEnded) event.preventDefault();
@@ -6446,32 +6640,73 @@
                 return false;
             }
             addonInventory.push({ type });
+            selectedAddonIndex = addonInventory.length - 1;
             return true;
         }
 
-        function activateMouseWheelPower() {
+        function normalizeSelectedAddonIndex() {
+            if (addonInventory.length <= 0) {
+                selectedAddonIndex = 0;
+                return;
+            }
+            selectedAddonIndex = ((selectedAddonIndex % addonInventory.length) + addonInventory.length) % addonInventory.length;
+        }
+
+        function getSelectedAddonEntry() {
+            normalizeSelectedAddonIndex();
+            return addonInventory[selectedAddonIndex] || null;
+        }
+
+        function getAddonDisplayName(type) {
+            if (type === 'blackHoleCore') {
+                return 'Singularitaets-Kern';
+            }
+            return 'Zusatz';
+        }
+
+        function cycleSelectedAddon(direction) {
+            if (addonInventory.length <= 1) {
+                return;
+            }
+            selectedAddonIndex += direction;
+            normalizeSelectedAddonIndex();
+            const selected = getSelectedAddonEntry();
+            if (selected) {
+                showAbilityMessage(`Zusatz gewaehlt: ${getAddonDisplayName(selected.type)}`);
+            }
+        }
+
+        function activateSelectedPower() {
             if (!gameStarted || matchEnded) {
                 return;
             }
 
-            const coreIndex = addonInventory.findIndex((entry) => entry.type === 'blackHoleCore');
-            if (coreIndex === -1) {
+            const selected = getSelectedAddonEntry();
+            if (!selected) {
                 showAbilityMessage('Kein Zusatz bereit');
                 return;
             }
 
-            addonInventory.splice(coreIndex, 1);
-            hasBlackHoleMagnet = true;
-            blackHoleMagnetCharge = BLACK_HOLE_MAGNET_MAX_CHARGE;
-            blackHoleMagnetUseTimer = 1.25;
-            showAbilityMessage('Zusatz aktiv: Singularitaetszug');
-            playSoundEffect('collect');
+            if (selected.type === 'blackHoleCore') {
+                addonInventory.splice(selectedAddonIndex, 1);
+                normalizeSelectedAddonIndex();
+                hasBlackHoleMagnet = true;
+                blackHoleMagnetCharge = BLACK_HOLE_MAGNET_MAX_CHARGE;
+                blackHoleMagnetUseTimer = 1.25;
+                showAbilityMessage('Zusatz aktiv: Singularitaetszug');
+                playSoundEffect('collect');
+                return;
+            }
+
+            showAbilityMessage('Zusatz kann noch nicht aktiviert werden');
         }
 
         function getAttackProfileForPlanet(planetName) {
             const profileByPlanet = {
                 Eis: { maxAmmo: 4, reloadSeconds: 0.8 },
-                Sturm: { maxAmmo: 5, reloadSeconds: 0.55 }
+                Sturm: { maxAmmo: 5, reloadSeconds: 0.55 },
+                Radioaktiv: { maxAmmo: 3, reloadSeconds: 1.0 },
+                Schatten: { maxAmmo: 4, reloadSeconds: 0.75 }
             };
             return profileByPlanet[planetName] || { maxAmmo: ATTACK_MAX_AMMO, reloadSeconds: ATTACK_RELOAD_SECONDS };
         }
@@ -6504,6 +6739,14 @@
 
             if (planetName === 'Sturm') {
                 return { ...base, slow: 2, freeze: 0, passivePerSecond: 0.2, movementPerSecond: 0.32, chain: 2, multi: 5 };
+            }
+
+            if (planetName === 'Radioaktiv') {
+                return { ...base, slow: 2.5, kill: 22, passivePerSecond: 0.13, poisonTick: 1, zoneHold: 2.5, multi: 4 };
+            }
+
+            if (planetName === 'Schatten') {
+                return { ...base, slow: 2, kill: 25, passivePerSecond: 0.12, shadowHit: 5, ambush: 7 };
             }
 
             return base;
@@ -6568,11 +6811,11 @@
                 }
                 showAbilityMessage('Wurzelfalle!');
             } else if (planet === 'Radioaktiv') {
-                fire('radiation', 13.4, 12, 1.35, '#7eff5a', baseDamage * 1.05);
-                showAbilityMessage('Strahlungswelle!');
+                fire('radiation', 11.2, Math.max(9, player.radius * 0.34), 0.95, '#7eff5a', baseDamage * 0.55);
+                showAbilityMessage('Toxic Core!');
             } else if (planet === 'Schatten') {
-                fire('shadow', 18.5, 11, 1.15, '#8040e0', baseDamage * 1.1);
-                showAbilityMessage('Schattenriss!');
+                fire('shadow', 15.8, Math.max(8, player.radius * 0.28), 1.15, '#8040e0', baseDamage * 0.62);
+                showAbilityMessage('Void Orb!');
             } else if (planet === 'Stein') {
                 fire('rock', 12.5, 14, 1.35, '#cab188', baseDamage * 1.35);
                 showAbilityMessage('Gravitationsdruck!');
@@ -6625,30 +6868,13 @@
                 ultimateActive = { type: 'worldTree', timer: 10, radius: 420, x: player.x, y: player.y };
                 showAbilityMessage('ULTIMATE: Weltbaum!');
             } else if (planet === 'Radioaktiv') {
-                ultimateActive = { type: 'meltdown', timer: 8, radius: 430, x: player.x, y: player.y };
-                showAbilityMessage('ULTIMATE: Meltdown!');
+                const meltdownRadius = Math.max(170, Math.min(360, player.radius * 6.0));
+                ultimateActive = { type: 'meltdown', timer: 8, radius: meltdownRadius, x: player.x, y: player.y, waveTick: 0.85, blastTick: 0.55 };
+                showAbilityMessage('ULTIMATE: Nuclear Meltdown!');
             } else if (planet === 'Schatten') {
-                let teleported = false;
-                for (let attempt = 0; attempt < 8; attempt += 1) {
-                    const teleportA = Math.random() * Math.PI * 2;
-                    const tx = Math.max(player.radius, Math.min(world.width - player.radius, player.x + Math.cos(teleportA) * 320));
-                    const ty = Math.max(player.radius, Math.min(world.height - player.radius, player.y + Math.sin(teleportA) * 320));
-                    if (hasBarrierLineBlock(player.x, player.y, tx, ty)) {
-                        continue;
-                    }
-                    if (barriers.some((barrier) => circleIntersectsRect(tx, ty, player.radius, barrier))) {
-                        continue;
-                    }
-                    player.x = tx;
-                    player.y = ty;
-                    teleported = true;
-                    break;
-                }
-                if (!teleported) {
-                    showAbilityMessage('Void Shift teilweise blockiert');
-                }
-                ultimateActive = { type: 'voidShift', timer: 5 };
-                showAbilityMessage('ULTIMATE: Void Shift!');
+                const darkVoidRadius = Math.max(180, Math.min(380, player.radius * 6.0));
+                ultimateActive = { type: 'darkVoid', timer: 8, radius: darkVoidRadius, x: player.x, y: player.y, dashCooldown: 0.2, pulseTick: 0.75 };
+                showAbilityMessage('ULTIMATE: Dark Void!');
             } else if (planet === 'Stein') {
                 ultimateActive = { type: 'titanCore', timer: 9 };
                 showAbilityMessage('ULTIMATE: Titan Core!');
@@ -6691,6 +6917,10 @@
                 if (moving) {
                     addUltimatePower(ultimateProfile.movementPerSecond * deltaSeconds * cooldownFactor);
                 }
+            }
+
+            if (planetName === 'Schatten' && isEntityInsideShadowVeil(player)) {
+                addUltimatePower((ultimateProfile.shadowHit || 0) * 0.12 * deltaSeconds);
             }
 
             // update aim from mouse
@@ -6942,6 +7172,34 @@
                 }
             }
 
+            radiationFields = radiationFields.filter((field) => {
+                field.timer -= deltaSeconds;
+                if (field.timer <= 0) {
+                    return false;
+                }
+                bots.forEach((bot) => {
+                    if (Math.hypot(bot.x - field.x, bot.y - field.y) < field.radius + bot.radius * 0.3) {
+                        bot.mass = Math.max(10, bot.mass - field.dps * deltaSeconds);
+                        bot.slowTimer = Math.max(bot.slowTimer || 0, 0.25);
+                        bot.abilityPoisonTimer = Math.max(bot.abilityPoisonTimer || 0, 0.4);
+                        if (field.sourcePlanet === 'Radioaktiv') {
+                            addUltimatePower((ultimateProfile.poisonTick || 0) * deltaSeconds * 0.7);
+                            const now = matchElapsedSeconds;
+                            if (!bot.lastRadiationZoneChargeAt || now - bot.lastRadiationZoneChargeAt >= 1.0) {
+                                bot.lastRadiationZoneChargeAt = now;
+                                addUltimatePower(ultimateProfile.zoneHold || 0);
+                            }
+                        }
+                    }
+                });
+                return true;
+            });
+
+            shadowVeils = shadowVeils.filter((veil) => {
+                veil.timer -= deltaSeconds;
+                return veil.timer > 0;
+            });
+
             if (ultimateActive) {
                 ultimateActive.timer -= deltaSeconds;
                 if (ultimateActive.type === 'hyperTornado') {
@@ -7073,12 +7331,85 @@
                         }
                     });
                 } else if (ultimateActive.type === 'meltdown') {
+                    let enemiesInZone = 0;
                     bots.forEach((bot) => {
                         if (Math.hypot(bot.x - ux, bot.y - uy) < ur) {
+                            enemiesInZone += 1;
                             bot.mutationTimer = Math.max(bot.mutationTimer || 0, 0.6);
-                            bot.mass = Math.max(10, bot.mass - 1.1 * deltaSeconds);
+                            bot.meltdownExposure = (bot.meltdownExposure || 0) + deltaSeconds;
+                            const damage = (0.75 + Math.min(1.35, bot.meltdownExposure * 0.32)) * deltaSeconds;
+                            bot.mass = Math.max(10, bot.mass - damage);
+                            bot.slowTimer = Math.max(bot.slowTimer || 0, 0.35);
+                            bot.abilityPoisonTimer = Math.max(bot.abilityPoisonTimer || 0, 0.5);
+                            addUltimatePower((ultimateProfile.poisonTick || 0) * deltaSeconds);
+                        } else {
+                            bot.meltdownExposure = Math.max(0, (bot.meltdownExposure || 0) - deltaSeconds * 1.5);
                         }
                     });
+                    if (enemiesInZone >= 2) {
+                        addUltimatePower((ultimateProfile.multi || 0) * deltaSeconds * 0.55);
+                    }
+                    ultimateActive.waveTick = (ultimateActive.waveTick ?? 0.85) - deltaSeconds;
+                    if (ultimateActive.waveTick <= 0) {
+                        ultimateActive.waveTick = 0.95;
+                        radiationFields.push({
+                            x: ux,
+                            y: uy,
+                            radius: Math.max(42, ur * 0.55),
+                            timer: 1.25,
+                            maxTimer: 1.25,
+                            dps: 0.58,
+                            sourcePlanet: 'Radioaktiv'
+                        });
+                    }
+                    ultimateActive.blastTick = (ultimateActive.blastTick ?? 0.55) - deltaSeconds;
+                    if (ultimateActive.blastTick <= 0) {
+                        ultimateActive.blastTick = 0.62;
+                        const blastAngle = Math.random() * Math.PI * 2;
+                        const blastDist = Math.random() * ur * 0.75;
+                        const bx = ux + Math.cos(blastAngle) * blastDist;
+                        const by = uy + Math.sin(blastAngle) * blastDist;
+                        createExplosion(bx, by, 28, 'rgba(136, 255, 104, 0.95)', 'combat', { particleCount: 8, particleSpread: 0.85 });
+                        bots.forEach((bot) => {
+                            if (Math.hypot(bot.x - bx, bot.y - by) < 42 + bot.radius) {
+                                bot.mass = Math.max(10, bot.mass - Math.max(2.5, player.mass * 0.01));
+                                bot.slowTimer = Math.max(bot.slowTimer || 0, 0.5);
+                                bot.abilityPoisonTimer = Math.max(bot.abilityPoisonTimer || 0, 1.1);
+                            }
+                        });
+                    }
+                } else if (ultimateActive.type === 'darkVoid') {
+                    ultimateActive.x = player.x;
+                    ultimateActive.y = player.y;
+                    playerSpeedBoost = Math.max(playerSpeedBoost, 0.72);
+                    bots.forEach((bot) => {
+                        if (Math.hypot(bot.x - ux, bot.y - uy) < ur) {
+                            bot.disorientTimer = Math.max(bot.disorientTimer || 0, 0.55);
+                            bot.slowTimer = Math.max(bot.slowTimer || 0, 0.28);
+                            bot.shadowBlindTimer = Math.max(bot.shadowBlindTimer || 0, 0.5);
+                        }
+                    });
+                    ultimateActive.dashCooldown = (ultimateActive.dashCooldown ?? 0.2) - deltaSeconds;
+                    const moving = keys.w || keys.a || keys.s || keys.d;
+                    if (moving && ultimateActive.dashCooldown <= 0) {
+                        const moveDx = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+                        const moveDy = (keys.s ? 1 : 0) - (keys.w ? 1 : 0);
+                        const moveLen = Math.hypot(moveDx, moveDy) || 1;
+                        const dashDist = 70;
+                        const tx = Math.max(player.radius, Math.min(world.width - player.radius, player.x + (moveDx / moveLen) * dashDist));
+                        const ty = Math.max(player.radius, Math.min(world.height - player.radius, player.y + (moveDy / moveLen) * dashDist));
+                        if (!hasBarrierLineBlock(player.x, player.y, tx, ty) && !barriers.some((barrier) => circleIntersectsRect(tx, ty, player.radius, barrier))) {
+                            player.x = tx;
+                            player.y = ty;
+                            createExplosion(player.x, player.y, 20, 'rgba(160, 96, 255, 0.55)', 'combat', { particleCount: 4, particleSpread: 0.35 });
+                        }
+                        ultimateActive.dashCooldown = 1.05;
+                    }
+                    ultimateActive.pulseTick = (ultimateActive.pulseTick ?? 0.75) - deltaSeconds;
+                    if (ultimateActive.pulseTick <= 0) {
+                        ultimateActive.pulseTick = 0.8;
+                        shadowVeils.push({ x: player.x, y: player.y, radius: Math.max(34, player.radius * 0.7), timer: 2.4, maxTimer: 2.4 });
+                    }
                 } else if (ultimateActive.type === 'voidShift') {
                     bots.forEach((bot) => {
                         if (Math.hypot(bot.x - player.x, bot.y - player.y) < 280) {
@@ -7275,12 +7606,32 @@
                             bot.rootTimer = 2.5;
                             addUltimatePower(ultimateProfile.slow);
                         } else if (p.type === 'radiation') {
-                            bot.slowTimer = 2.0;
                             bot.abilityPoisonTimer = 3.0;
+                            bot.slowTimer = Math.max(bot.slowTimer || 0, 1.0);
+                            radiationFields.push({
+                                x: p.x,
+                                y: p.y,
+                                radius: Math.max(44, player.radius * 1.05),
+                                timer: 4.0,
+                                maxTimer: 4.0,
+                                dps: 0.48,
+                                sourcePlanet: 'Radioaktiv'
+                            });
                             addUltimatePower(ultimateProfile.slow);
                         } else if (p.type === 'shadow') {
-                            bot.disorientTimer = 2.0;
+                            bot.disorientTimer = 1.3;
+                            bot.shadowBlindTimer = Math.max(bot.shadowBlindTimer || 0, 1.3);
+                            shadowVeils.push({
+                                x: p.x,
+                                y: p.y,
+                                radius: Math.max(28, player.radius * 0.55),
+                                timer: 3.0,
+                                maxTimer: 3.0
+                            });
                             addUltimatePower(ultimateProfile.slow);
+                            if (isEntityInsideShadowVeil(player) || playerInVoidNebula) {
+                                addUltimatePower((ultimateProfile.shadowHit || 0));
+                            }
                         } else if (p.type === 'wave') {
                             bot.slowTimer = 3.0;
                             addUltimatePower(ultimateProfile.slow);
@@ -7309,6 +7660,7 @@
                 if (bot.abilityPoisonTimer > 0) {
                     bot.abilityPoisonTimer -= deltaSeconds;
                     bot.mass = Math.max(10, bot.mass - 0.6 * deltaSeconds);
+                    addUltimatePower((ultimateProfile.poisonTick || 0) * deltaSeconds);
                 }
             });
 
@@ -7329,12 +7681,51 @@
                 if (bot.gadgetLockTimer > 0) bot.gadgetLockTimer = Math.max(0, bot.gadgetLockTimer - deltaSeconds);
                 if (bot.rootTimer > 0) bot.rootTimer = Math.max(0, bot.rootTimer - deltaSeconds);
                 if (bot.disorientTimer > 0) bot.disorientTimer = Math.max(0, bot.disorientTimer - deltaSeconds);
+                if (bot.shadowBlindTimer > 0) bot.shadowBlindTimer = Math.max(0, bot.shadowBlindTimer - deltaSeconds);
                 if (bot.mutationTimer > 0) bot.mutationTimer = Math.max(0, bot.mutationTimer - deltaSeconds);
                 if (bot.abilityPoisonTimer > 0) bot.abilityPoisonTimer = Math.max(0, bot.abilityPoisonTimer - 0); // handled above
             });
         }
 
         function drawAbilityEffects() {
+            radiationFields.forEach((field) => {
+                const sx = field.x - camera.x;
+                const sy = field.y - camera.y;
+                const fade = Math.min(1, field.timer / Math.max(0.1, field.maxTimer || field.timer));
+                ctx.save();
+                ctx.globalAlpha = 0.22 * fade;
+                const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, field.radius);
+                grad.addColorStop(0, 'rgba(170, 255, 110, 0.95)');
+                grad.addColorStop(0.55, 'rgba(105, 255, 90, 0.35)');
+                grad.addColorStop(1, 'rgba(40, 90, 24, 0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath(); ctx.arc(sx, sy, field.radius, 0, Math.PI * 2); ctx.fill();
+                ctx.globalAlpha = 0.55 * fade;
+                ctx.strokeStyle = 'rgba(176, 255, 122, 0.92)';
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(sx, sy, field.radius, 0, Math.PI * 2); ctx.stroke();
+                ctx.restore();
+            });
+
+            shadowVeils.forEach((veil) => {
+                const sx = veil.x - camera.x;
+                const sy = veil.y - camera.y;
+                const fade = Math.min(1, veil.timer / Math.max(0.1, veil.maxTimer || veil.timer));
+                ctx.save();
+                ctx.globalAlpha = 0.28 * fade;
+                const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, veil.radius);
+                grad.addColorStop(0, 'rgba(80, 26, 130, 0.9)');
+                grad.addColorStop(0.6, 'rgba(40, 10, 80, 0.45)');
+                grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = grad;
+                ctx.beginPath(); ctx.arc(sx, sy, veil.radius, 0, Math.PI * 2); ctx.fill();
+                ctx.globalAlpha = 0.42 * fade;
+                ctx.strokeStyle = 'rgba(186, 120, 255, 0.72)';
+                ctx.lineWidth = 1.7;
+                ctx.beginPath(); ctx.arc(sx, sy, veil.radius, 0, Math.PI * 2); ctx.stroke();
+                ctx.restore();
+            });
+
             if (frostWave) {
                 const sx = frostWave.x - camera.x;
                 const sy = frostWave.y - camera.y;
@@ -7522,13 +7913,15 @@
                 ctx.save();
                 ctx.globalAlpha = 0.32;
                 const ug = ctx.createRadialGradient(ux, uy, 0, ux, uy, Math.max(1, ur));
-                ug.addColorStop(0, 'rgba(210, 120, 255, 0.55)');
-                ug.addColorStop(1, 'rgba(140, 80, 255, 0)');
+                const isMeltdown = ultimateActive.type === 'meltdown';
+                const isDarkVoid = ultimateActive.type === 'darkVoid';
+                ug.addColorStop(0, isMeltdown ? 'rgba(170, 255, 116, 0.58)' : (isDarkVoid ? 'rgba(58, 20, 120, 0.65)' : 'rgba(210, 120, 255, 0.55)'));
+                ug.addColorStop(1, isMeltdown ? 'rgba(72, 140, 42, 0)' : (isDarkVoid ? 'rgba(18, 8, 36, 0)' : 'rgba(140, 80, 255, 0)'));
                 ctx.fillStyle = ug;
                 if (ur > 0) {
                     ctx.beginPath(); ctx.arc(ux, uy, ur, 0, Math.PI * 2); ctx.fill();
                     ctx.globalAlpha = 0.65;
-                    ctx.strokeStyle = 'rgba(230, 170, 255, 0.9)';
+                    ctx.strokeStyle = isMeltdown ? 'rgba(196, 255, 148, 0.9)' : (isDarkVoid ? 'rgba(202, 150, 255, 0.84)' : 'rgba(230, 170, 255, 0.9)');
                     ctx.lineWidth = 2.5;
                     ctx.beginPath(); ctx.arc(ux, uy, ur, 0, Math.PI * 2); ctx.stroke();
                 }
@@ -7876,6 +8269,33 @@
             }
         }
 
+        function drawCombatScreenOverlays() {
+            if (!gameStarted || matchEnded) {
+                return;
+            }
+
+            if (ultimateActive && ultimateActive.type === 'meltdown') {
+                const glow = 0.12 + 0.05 * Math.sin(performance.now() / 140);
+                const grad = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.2, canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.7);
+                grad.addColorStop(0, 'rgba(0,0,0,0)');
+                grad.addColorStop(1, `rgba(110, 255, 72, ${glow})`);
+                ctx.save();
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.restore();
+            }
+
+            if (ultimateActive && ultimateActive.type === 'darkVoid') {
+                const grad = ctx.createRadialGradient(canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.18, canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.74);
+                grad.addColorStop(0, 'rgba(0,0,0,0)');
+                grad.addColorStop(1, 'rgba(22, 8, 42, 0.24)');
+                ctx.save();
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.restore();
+            }
+        }
+
         function initializeBots() {
             bots = [];
             const edgeSpawns = getEdgeSpawnPoints(BOT_COUNT, 120);
@@ -8010,6 +8430,9 @@
             startPreviewTimer = 0;
             startCountdownSoundStep = -1;
             addonInventory = [];
+            selectedAddonIndex = 0;
+            radiationFields = [];
+            shadowVeils = [];
             blackHoleMagnetPickups = [];
             blackHoleMagnetCharge = 0;
             hasBlackHoleMagnet = false;
@@ -8119,7 +8542,7 @@
             blackHoleMoveFactor = Math.min(1.2, blackHoleMoveFactor * profile.dragResist);
 
             const boostMult = speedBoostMult * meteorBoostMult * jetstreamMult * blackHoleMoveFactor;
-            const currentSpeed = Math.max(0.8, player.speed / Math.pow(player.mass / 100, 0.7)) * PLANET_SPEED_MULT * boostMult;
+            const currentSpeed = getEntityMoveSpeed(player, 0.8) * PLANET_SPEED_MULT * boostMult;
             player.x += (moveX / length) * currentSpeed;
             player.y += (moveY / length) * currentSpeed;
 
@@ -8127,6 +8550,11 @@
 
             player.x = Math.max(player.radius, Math.min(world.width - player.radius, player.x));
             player.y = Math.max(player.radius, Math.min(world.height - player.radius, player.y));
+        }
+
+        function getEntityMoveSpeed(entity, minimumSpeed) {
+            const normalizedMass = Math.max(entity.mass / 100, 1);
+            return Math.max(minimumSpeed, entity.speed / Math.pow(normalizedMass, 0.55));
         }
 
         function buildAsteroidVisualData(asteroidRadius) {
@@ -8462,7 +8890,7 @@
                         }
                         const botProfile = getBlackHolePlanetProfile(bot.planetName || 'Bot');
                         blackHoleSpeedFactor = Math.min(1.2, blackHoleSpeedFactor * botProfile.dragResist);
-                        const currentBotSpeed = Math.max(0.5, bot.speed / Math.pow(bot.mass / 100, 0.7)) * PLANET_SPEED_MULT * speedMult * blackHoleSpeedFactor;
+                        const currentBotSpeed = getEntityMoveSpeed(bot, 0.5) * PLANET_SPEED_MULT * speedMult * blackHoleSpeedFactor;
                         bot.x += (bot.moveDirX / smoothLen) * currentBotSpeed;
                         bot.y += (bot.moveDirY / smoothLen) * currentBotSpeed;
                         if (resolveEntityBarrierCollision(bot, prevX, prevY)) {
@@ -8974,6 +9402,7 @@
                     player.mass += bot.mass * PLANET_ABSORB_GAIN;
                     createCombatDeathEffect(bot.x, bot.y, bot.radius * 1.2);
                     playerKills += 1;
+                    addUltimatePower(getUltimateChargeProfile(getSelectedHomePlanet().name).kill || 0);
                     updatePlayerRadius();
                     updateMassDisplay();
                     return false;
@@ -9151,13 +9580,13 @@
 
             const homePlanet = getSelectedHomePlanet();
             const img = PLANET_GAME_IMAGES[homePlanet.name];
-            const isVoidShift = ultimateActive && ultimateActive.type === 'voidShift';
+            const isDarkVoid = ultimateActive && ultimateActive.type === 'darkVoid';
             const isTitanCore = ultimateActive && ultimateActive.type === 'titanCore';
             const visibility = playerInVoidNebula ? playerVoidVisibility : 1;
 
             ctx.save();
-            if (isVoidShift) {
-                ctx.globalAlpha = 0.28;
+            if (isDarkVoid) {
+                ctx.globalAlpha = 0.42;
             }
             if (playerInVoidNebula) {
                 ctx.globalAlpha *= visibility;
@@ -9257,7 +9686,11 @@
                 bot.rotAngle = (bot.rotAngle || 0) + 0.003;
 
                 const img = bot.planetName ? PLANET_GAME_IMAGES[bot.planetName] : null;
+                const inShadow = isEntityInsideShadowVeil(bot);
                 ctx.save();
+                if (bot.shadowBlindTimer > 0 || inShadow) {
+                    ctx.globalAlpha = inShadow ? 0.58 : 0.72;
+                }
                 ctx.beginPath();
                 ctx.arc(sx, sy, r, 0, Math.PI * 2);
                 ctx.clip();
@@ -9283,13 +9716,15 @@
                     ctx.stroke();
                 }
 
-                ctx.fillStyle = '#ffffff';
-                ctx.font = '13px Arial';
-                ctx.fillText(Math.max(0, Math.ceil(bot.mass)), sx, sy - r - 8);
+                if (!(bot.shadowBlindTimer > 0 || inShadow)) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '13px Arial';
+                    ctx.fillText(Math.max(0, Math.ceil(bot.mass)), sx, sy - r - 8);
 
-                ctx.fillStyle = 'rgba(255,220,120,0.9)';
-                ctx.font = 'bold 12px Arial';
-                ctx.fillText(bot.name, sx, sy - r - 22);
+                    ctx.fillStyle = 'rgba(255,220,120,0.9)';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.fillText(bot.name, sx, sy - r - 22);
+                }
 
                 if (startPreviewTimer > 0) {
                     ctx.fillStyle = '#ffd36b';
@@ -9927,6 +10362,7 @@
             drawBots();
             drawExplosions();
             drawPlayer();
+            drawCombatScreenOverlays();
             drawAbilityHud();
             drawMatchMessage();
             drawStartMessage();
@@ -10010,6 +10446,12 @@
         if (planetFocus) {
             planetFocus.addEventListener('click', () => {
                 showPlanetCallout();
+            });
+        }
+
+        if (planetInfoButton) {
+            planetInfoButton.addEventListener('click', () => {
+                showImageActionPanel('planet-info');
             });
         }
 
