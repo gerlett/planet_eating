@@ -170,3 +170,169 @@ Initialisierung
 - Delta-Zeit begrenzt auf maximal 50 ms pro Frame (Anti-Spiral-of-Death).
 - Welt passt sich bei `resize` an die neue Fenstergröße an.
 - Asteroiden-Spawn-Intervall: 1000 ms (3 pro Tick via `setInterval`).
+
+---
+
+## Planeten – Beschreibung, Attacke & Gadget
+
+Jeder Planet hat eine eigene Rolle, eine Attacke und ein Gadget. Das Gadget wird in der Startscreen-UI über dem Planeten-Bild angezeigt und wechselt automatisch bei der Planet-Auswahl.
+
+---
+
+### 🔥 Lava
+
+**Rolle:** Offensiv  
+**Beschreibung:** Ein Vulkanplanet mit lodernden Ausbrüchen, der Gegner mit brachialem Druck überrollt.
+
+| | Name | Beschreibung |
+|---|---|---|
+| **Attacke** | Magma-Stoss | Trifft Gegner vorne und bremst sie kurz. |
+| **Gadget** | Magma-Anker | Setzt ein heisses Gravitationsfeld – nahe Planeten werden langsam zur Mitte gezogen. Rausfliegen kostet mehr Kraft. |
+
+**Gadget-Typ:** Gravity Control / Zone Lock  
+**Visual:** Glühender roter Kern, flackernde Hitzewellen, leichte Raumverzerrung.  
+**Mechanik:** Reduziert Bewegungsgeschwindigkeit im Radius, verhindert schnelles Verlassen der Zone, erhöht Energieverbrauch beim Bewegen gegen die Gravitation.
+
+---
+
+### ❄️ Eis
+
+**Rolle:** Kontrolle  
+**Beschreibung:** Eine gefrorene Kugel mit splitterndem Eis, langsamem Kern und kräftigem Gegendruck.
+
+| | Name | Beschreibung |
+|---|---|---|
+| **Attacke** | Frost-Stoss | Schiebt Gegner weg und verlangsamt sie kurz. |
+| **Gadget** | Kryo-Spiegel | Spiegelt die Bewegungsrichtung des ersten Objekts um, das hineinläuft. Kein Schaden, nur Umleitung. |
+
+**Gadget-Typ:** Reflection / Movement Manipulation  
+**Visual:** Eisblaue reflektierende Oberfläche, Lichtbrechung wie in Kristall, kurze Frost-Ausbreitung beim Trigger.  
+**Mechanik:** Erster Bewegungsimpuls wird umgekehrt, keine Schadensanwendung, kann Positionen unvorhersehbar ändern.
+
+---
+
+### ⚡ Sturm
+
+**Rolle:** Tempo  
+**Beschreibung:** Ein geladener Sturmplanet, dessen Blitze bei jeder Bewegung am Mantel entlangzucken.
+
+| | Name | Beschreibung |
+|---|---|---|
+| **Attacke** | Blitz-Impuls | Schickt einen Blitz nach vorne, der kurz ablenkt. |
+| **Gadget** | Circuit-Sprung | Springt entlang der Bewegungslinien anderer Planeten. Extrem schnelle Positionswechsel möglich. |
+
+**Gadget-Typ:** Teleport / Momentum Chain  
+**Visual:** Elektrische Linien verbinden Objekte, Blitz-Impulse zwischen Punkten, kurze Afterimages beim Teleport.  
+**Mechanik:** Erlaubt Bewegung entlang bestehender Bewegungsstraßen anderer Planeten, kein direkter Schaden, extrem hohe Mobilität.
+
+---
+
+### 🌿 Natur
+
+**Rolle:** Kontrolle  
+**Beschreibung:** Ein organischer Planet, der Gegner durch Wurzeln bindet und synchronisiert.
+
+| | Name | Beschreibung |
+|---|---|---|
+| **Attacke** | Wurzel-Peitsche | Schlägt mit einer Wurzel zu und hält den Gegner kurz fest. |
+| **Gadget** | Wurzelnetz | Verbindet zwei Planeten durch ein biologisches Wurzelsystem – beide teilen dieselbe Bewegungsrichtung. |
+
+**Gadget-Typ:** Binding / Sync Movement  
+**Visual:** Grüne leuchtende Wurzeln im Raum, organische Verbindungslinien, leichte Pulsation wie Herzschlag.  
+**Mechanik:** Verbundene Planeten teilen Bewegungsrichtung, kann Bewegung einschränken oder synchronisieren, stabilisiert Positionen.
+
+---
+
+### ☢️ Radioaktiv
+
+**Rolle:** Chaos  
+**Beschreibung:** Ein instabiler Planet, der physikalische Regeln kurz außer Kraft setzt.
+
+| | Name | Beschreibung |
+|---|---|---|
+| **Attacke** | Strahlen-Burst | Feuert einen radioaktiven Strahl, der die Kontrolle kurz stört. |
+| **Gadget** | Mutations-Feld | Ändert eine physikalische Regel kurz im Bereich – Gravitation oder Geschwindigkeit können sich zufällig umkehren. |
+
+**Gadget-Typ:** Random Physics Modifier  
+**Visual:** Flackernde grüne/lila Partikel, glitchartige Verzerrung, instabile Raumanimation.  
+**Mechanik:** Gravitation kann invertiert werden, Geschwindigkeit zufällig verändert, Effekte können sich selbst überschreiben.
+
+---
+
+### 🌑 Schatten
+
+**Rolle:** Täuschung  
+**Beschreibung:** Ein dunkler Planet, der Positionen tauscht und Gegner desorientiert.
+
+| | Name | Beschreibung |
+|---|---|---|
+| **Attacke** | Schatten-Schlag | Greift aus dem Nichts an und bricht die Zielausrichtung. |
+| **Gadget** | Phasentausch | Tauscht die Position mit einem anderen Objekt aus – ohne Bewegung, nur Teleport. |
+
+**Gadget-Typ:** Position Swap / Desync  
+**Visual:** Dunkle Rauchspur zwischen Punkten, kurze Glitch-Teleport-Animation, Schatten-Nachbilder.  
+**Mechanik:** Kein Bewegen nötig, nur Positionsaustausch, kann Gegner desorientieren, bricht Zielausrichtung.
+
+---
+
+### 🪨 Stein
+
+**Rolle:** Defense  
+**Beschreibung:** Ein massiver Planet, der sich durch rotierende Felsbrocken schützt.
+
+| | Name | Beschreibung |
+|---|---|---|
+| **Attacke** | Fels-Ramme | Rammt mit voller Wucht und schiebt alles weg. |
+| **Gadget** | Orbit-Schild | Lässt Steinfragmente um den Planeten kreisen – schützt vor Push, Pull und Positionsveränderungen. |
+
+**Gadget-Typ:** Defense / Barrier Physics  
+**Visual:** Rotierende Felsbrocken, stabile kreisförmige Struktur, schwere langsame Rotation.  
+**Mechanik:** Blockiert Bewegungen und externe Kräfte, schützt vor Push/Pull-Effekten, stabilisiert Position im Raum.
+
+---
+
+### 🌪️ Wind
+
+**Rolle:** Positionierung  
+**Beschreibung:** Ein Planet, der gerichtete Luftströme erzeugt und Gegner zieht oder stößt.
+
+| | Name | Beschreibung |
+|---|---|---|
+| **Attacke** | Windstoss | Pusht Gegner weg mit einem gezielten Luftstoss. |
+| **Gadget** | Wind-Griff | Erzeugt Luftströme, die Planeten ziehen oder schieben können – flexibel für Angriff und Positionierung. |
+
+**Gadget-Typ:** Force Push/Pull Control  
+**Visual:** Sichtbare Luftlinien, swirlende Windwirbel, leichte Objektverzerrung.  
+**Mechanik:** Kann Planeten bewegen ohne Schaden, kontrollierte Push/Pull-Kräfte, sehr flexibel im Positioning.
+
+---
+
+### 🌊 Wasser
+
+**Rolle:** Schutz & Mobilität  
+**Beschreibung:** Ein Planet, der sich in einer schützenden Blase fortbewegt.
+
+| | Name | Beschreibung |
+|---|---|---|
+| **Attacke** | Wellen-Schlag | Trifft mit einer Welle und verlangsamt kurz. |
+| **Gadget** | Strömungsblase | Hüllt den Planeten in eine Wasserblase – schützt vor äusseren Kräften und trägt ihn glatt in eine Richtung. |
+
+**Gadget-Typ:** Auto-Movement / Protection  
+**Visual:** Transparente Wasserblase, sanfte Wellenbewegung, Lichtbrechung im Inneren.  
+**Mechanik:** Schützt vor externen Kräften, bewegt Objekt automatisch, glatte kontrollierte Bewegung.
+
+---
+
+### 👽 Alien
+
+**Rolle:** Kontrolle  
+**Beschreibung:** Ein fremder Planet, der kurzzeitig die Steuerung anderer Planeten übernimmt.
+
+| | Name | Beschreibung |
+|---|---|---|
+| **Attacke** | Psi-Impuls | Sendet einen mentalen Impuls, der die Steuerung des Gegners kurz stört. |
+| **Gadget** | Geistfeld | Übernimmt kurzzeitig die Bewegungssteuerung eines anderen Planeten – kein Schaden, maximaler taktischer Wert. |
+
+**Gadget-Typ:** Temporary Control / Override  
+**Visual:** Glitchender HUD-Effekt, mentale Wellen im Raum, fremdartige Symbolik.  
+**Mechanik:** Kontrolliert Bewegung eines Zielobjekts, keine direkten Schäden, extrem hoher taktischer Wert.
